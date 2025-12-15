@@ -86,8 +86,8 @@ export default function DoctorDetail() {
                   border: "1px solid #e2f7f2",
                 }}
               >
-                <h6 className="text-success mb-1">Địa chỉ phòng khám</h6>
-                <p className="fw-bold fs-5 mb-0">{doctor.clinicAddress}</p>
+                <h6 className="text-success mb-1">Số điện thoại</h6>
+                <p className="fw-bold fs-5 mb-0">{doctor.phone}</p>
               </div>
             </div>
           </div>
