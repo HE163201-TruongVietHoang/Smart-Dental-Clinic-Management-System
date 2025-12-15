@@ -316,7 +316,7 @@ export default function Home() {
               {
                 icon: "fa-map-marker-alt",
                 title: "Địa chỉ",
-                text: "123 Hoà Lạc, TP.HN",
+                text: "123 Hoà Lạc, TP.Hà Nội",
               },
               {
                 icon: "fa-envelope",

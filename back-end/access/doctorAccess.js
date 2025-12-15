@@ -5,7 +5,7 @@ const doctorAccess = {
     try {
       const pool = await getPool(); // kết nối SQL Server
       const result = await pool.request().query(`
-          SELECT u.userId, u.fullName, u.email, u.phone, u.gender, u.dob, u.address, u.avatar
+          SELECT u.userId, u.fullName, u.email, u.phone, u.gender, u.dob, u.address, u.avatar, u.experience, u.bio
           FROM Users u
           JOIN Roles r ON u.roleId = r.roleId
           WHERE r.roleName = 'Doctor' AND u.isActive = '1'
@@ -21,7 +21,7 @@ const doctorAccess = {
       const pool = await getPool();
       const result = await pool.request().input("userId", sql.Int, userId)
         .query(`
-          SELECT u.userId, u.fullName, u.email, u.phone, u.gender, u.dob, u.address, u.avatar
+          SELECT u.userId, u.fullName, u.email, u.phone, u.gender, u.dob, u.address, u.avatar, u.experience, u.bio
           FROM Users u
           JOIN Roles r ON u.roleId = r.roleId
           WHERE r.roleName = 'Doctor' AND u.isActive = '1' AND u.userId = @userId
