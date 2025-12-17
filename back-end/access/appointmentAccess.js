@@ -23,9 +23,21 @@ async function create(
 async function getByUser(userId) {
   const pool = await getPool();
   const result = await pool.request().input("userId", sql.Int, userId).query(`
-      SELECT a.appointmentId, a.reason, a.status, a.appointmentType,
+      SELECT a.appointmentId, a.reason, a.status, a.appointmentType, a.doctorId,
              s.startTime, s.endTime, sch.workDate,
-             d.fullName AS doctorName, s.slotId
+             d.fullName AS doctorName, s.slotId,
+             (
+               SELECT 
+                 srv.serviceId,
+                 srv.serviceName,
+                 srv.description AS serviceDescription,
+                 srv.price AS servicePrice,
+                 aps.createdAt AS addedAt
+               FROM AppointmentServices aps
+               JOIN Services srv ON aps.serviceId = srv.serviceId
+               WHERE aps.appointmentId = a.appointmentId
+               FOR JSON PATH
+             ) AS services
       FROM Appointments a
       JOIN Slots s ON a.slotId = s.slotId
       JOIN Schedules sch ON s.scheduleId = sch.scheduleId
@@ -33,7 +45,10 @@ async function getByUser(userId) {
       WHERE a.patientId = @userId
       ORDER BY sch.workDate, s.startTime
     `);
-  return result.recordset;
+  return result.recordset.map(row => ({
+    ...row,
+    services: row.services ? JSON.parse(row.services) : []
+  }));
 }
 async function getAll() {
   const pool = await getPool();
