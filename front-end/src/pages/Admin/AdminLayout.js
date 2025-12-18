@@ -19,9 +19,14 @@ function AdminLayout({ children }) {
 
   const menu = [
     {
-      name: "Quản lý tài khoản",
+      name: "Quản lý người dùng",
       icon: <FaTachometerAlt />,
-      path: "/admin/acounts",
+      path: "/admin/users",
+    },
+    {
+      name: "Quản lý vai trò",
+      icon: <FaUserCircle />,
+      path: "/admin/roles",
     },
   ];
 

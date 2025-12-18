@@ -5,7 +5,7 @@ const bcrypt = require("bcrypt");
 // Lấy tất cả người dùng
 async function getAllUsers() {
   const pool = await getPool();
-  const result = await pool.request().query("SELECT * FROM Users");
+  const result = await pool.request().query("SELECT u.*, r.roleName FROM Users u JOIN Roles r ON u.roleId = r.roleId");
   return result.recordset;
 }
 
@@ -15,7 +15,7 @@ async function getUserById(userId) {
   const result = await pool
     .request()
     .input("userId", sql.Int, userId)
-    .query("SELECT * FROM Users WHERE userId=@userId");
+    .query("SELECT u.*, r.roleName FROM Users u JOIN Roles r ON u.roleId = r.roleId WHERE u.userId=@userId");
 
   return result.recordset[0];
 }

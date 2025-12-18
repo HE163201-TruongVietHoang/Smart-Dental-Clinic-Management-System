@@ -59,4 +59,61 @@ async function findAvailableRoom(workDate, startTime, endTime) {
 
   return result.recordset[0] || null;
 }
-module.exports = { findAvailableRoom };
+
+async function getAllRooms() {
+  const pool = await getPool();
+  const result = await pool.request().query("SELECT * FROM Rooms ORDER BY roomId");
+  return result.recordset;
+}
+
+async function getRoomById(roomId) {
+  const pool = await getPool();
+  const result = await pool.request()
+    .input("roomId", sql.Int, roomId)
+    .query("SELECT * FROM Rooms WHERE roomId = @roomId");
+  return result.recordset[0] || null;
+}
+
+async function getRoomByName(roomName) {
+  const pool = await getPool();
+  const result = await pool.request()
+    .input("roomName", sql.NVarChar, roomName)
+    .query("SELECT * FROM Rooms WHERE roomName = @roomName");
+  return result.recordset[0] || null;
+}
+
+async function createRoom(roomName, status = 'Available') {
+  const pool = await getPool();
+  const result = await pool.request()
+    .input("roomName", sql.NVarChar, roomName)
+    .input("status", sql.NVarChar, status)
+    .query("INSERT INTO Rooms (roomName, status) OUTPUT INSERTED.* VALUES (@roomName, @status)");
+  return result.recordset[0];
+}
+
+async function updateRoom(roomId, roomName, status) {
+  const pool = await getPool();
+  const result = await pool.request()
+    .input("roomId", sql.Int, roomId)
+    .input("roomName", sql.NVarChar, roomName)
+    .input("status", sql.NVarChar, status)
+    .query("UPDATE Rooms SET roomName = @roomName, status = @status WHERE roomId = @roomId");
+  return result.rowsAffected[0] > 0;
+}
+
+async function deleteRoom(roomId) {
+  const pool = await getPool();
+  // Check if room is referenced in Schedules
+  const checkResult = await pool.request()
+    .input("roomId", sql.Int, roomId)
+    .query("SELECT COUNT(*) as count FROM Schedules WHERE roomId = @roomId");
+  if (checkResult.recordset[0].count > 0) {
+    throw new Error("Không thể xóa phòng vì phòng này đã được sử dụng trong lịch trình");
+  }
+  const result = await pool.request()
+    .input("roomId", sql.Int, roomId)
+    .query("DELETE FROM Rooms WHERE roomId = @roomId");
+  return result.rowsAffected[0] > 0;
+}
+
+module.exports = { findAvailableRoom, getAllRooms, getRoomById, getRoomByName, createRoom, updateRoom, deleteRoom };

@@ -179,7 +179,7 @@ export default function MyAppointmentsPage() {
                                     `/appointment/${
                                       a.appointmentId
                                     }/review?doctorId=${a.doctorId}&serviceId=${
-                                      a.serviceId || ""
+                                      a.services[0]?.serviceId || ""
                                     }`
                                   )
                                 }

@@ -8,6 +8,8 @@ export default function UserManagement() {
   const [users, setUsers] = useState([]);
   const [editingUser, setEditingUser] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [roles, setRoles] = useState([]);
+  const [message, setMessage] = useState(null);
 
   const [form, setForm] = useState({
     fullName: "",
@@ -17,10 +19,31 @@ export default function UserManagement() {
     gender: "",
     dob: "",
     address: "",
-    roleId: 2,
+    roleId: "",
     isActive: true,
     isVerify: false,
   });
+
+  const translateRole = (roleName) => {
+    const map = {
+      Admin: 'Quản trị viên',
+      ClinicManager: 'Quản lý phòng khám',
+      Doctor: 'Bác sĩ',
+      Nurse: 'Y tá',
+      Patient: 'Bệnh nhân',
+      Receptionist: 'Lễ tân'
+    };
+    return map[roleName] || roleName;
+  };
+
+  const translateGender = (gender) => {
+    const map = {
+      Male: 'Nam',
+      Female: 'Nữ',
+      Other: 'Khác'
+    };
+    return map[gender] || gender;
+  };
 
   const getAuthHeaders = () => ({
     Authorization: `Bearer ${localStorage.getItem("token")}`,
@@ -29,7 +52,15 @@ export default function UserManagement() {
   // fetch users
   useEffect(() => {
     fetchUsers();
+    fetchRoles();
   }, []);
+
+  useEffect(() => {
+    if (message) {
+      const timer = setTimeout(() => setMessage(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [message]);
 
   const fetchUsers = async () => {
     try {
@@ -39,6 +70,19 @@ export default function UserManagement() {
       setUsers(res.data.users);
     } catch (err) {
       console.error("Fetch failed:", err);
+      setMessage("Lỗi khi tải danh sách người dùng: " + (err.response?.data?.message || err.error));
+    }
+  };
+
+  const fetchRoles = async () => {
+    try {
+      const res = await axios.get(`http://localhost:5000/api/roles`, {
+        headers: getAuthHeaders(),
+      });
+      setRoles(res.data);
+    } catch (err) {
+      console.error("Fetch roles failed:", err);
+      setMessage("Lỗi khi tải danh sách vai trò: " + (err.response?.data?.message || err.error));
     }
   };
 
@@ -56,16 +100,19 @@ export default function UserManagement() {
         await axios.put(`${API_URL}/users/${editingUser.userId}`, form, {
           headers: getAuthHeaders(),
         });
+        setMessage("Chỉnh sửa người dùng thành công!");
       } else {
         await axios.post(`${API_URL}/users`, form, {
           headers: getAuthHeaders(),
         });
+        setMessage("Thêm người dùng thành công!");
       }
 
       fetchUsers();
       resetForm();
     } catch (err) {
       console.error("Save failed:", err);
+      setMessage("Lỗi khi lưu: " + (err.response?.data?.message || err.error));
     }
   };
 
@@ -79,22 +126,24 @@ export default function UserManagement() {
       gender: "",
       dob: "",
       address: "",
-      roleId: 2,
+      roleId: "",
       isActive: true,
       isVerify: false,
     });
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm("Bạn chắc muốn xóa user này?")) return;
+    if (!window.confirm("Bạn chắc muốn xóa người dùng này?")) return;
 
     try {
       await axios.delete(`${API_URL}/users/${id}`, {
         headers: getAuthHeaders(),
       });
+      setMessage("Xóa người dùng thành công!");
       fetchUsers();
     } catch (err) {
       console.error("Delete failed:", err);
+      setMessage("Lỗi khi xóa: " + (err.response?.data?.message || err.error));
     }
   };
 
@@ -108,7 +157,7 @@ export default function UserManagement() {
       gender: u.gender,
       dob: u.dob ? u.dob.split("T")[0] : "",
       address: u.address,
-      roleId: u.roleId,
+      roleId: u.roleId || "",
       isActive: u.isActive,
       isVerify: u.isVerify,
     });
@@ -140,11 +189,18 @@ export default function UserManagement() {
     <div className="container">
       <h3 className="mb-4 fw-bold text-uppercase">Quản lý Người dùng</h3>
 
+      {message && (
+        <div className={`alert ${message.includes("thành công") ? "alert-success" : "alert-danger"} alert-dismissible fade show`} role="alert">
+          {message}
+          <button type="button" className="btn-close" onClick={() => setMessage(null)}></button>
+        </div>
+      )}
+
       {/* Form thêm user */}
       <form onSubmit={handleSubmit} className="card p-3 shadow-sm mb-4">
         <h5 className="fw-semibold mb-3">
           <FaPlus className="me-2" />
-          {editingUser ? "Chỉnh sửa user" : "Thêm user mới"}
+          {editingUser ? "Chỉnh sửa người dùng" : "Thêm người dùng mới"}
         </h5>
 
         <div className="row g-3 align-items-center">
@@ -153,7 +209,7 @@ export default function UserManagement() {
               type="text"
               className="form-control"
               name="fullName"
-              placeholder="Full name"
+              placeholder="Họ tên"
               value={form.fullName}
               onChange={handleChange}
               required
@@ -177,7 +233,7 @@ export default function UserManagement() {
               type="text"
               className="form-control"
               name="phone"
-              placeholder="Phone"
+              placeholder="Số điện thoại"
               value={form.phone}
               onChange={handleChange}
               required
@@ -190,7 +246,7 @@ export default function UserManagement() {
                 type="password"
                 className="form-control"
                 name="password"
-                placeholder="Password"
+                placeholder="Mật khẩu"
                 value={form.password}
                 onChange={handleChange}
                 required
@@ -234,6 +290,19 @@ export default function UserManagement() {
             />
           </div>
 
+          <div className="col-md-2">
+            <select
+              name="roleId"
+              className="form-select"
+              value={form.roleId}
+              onChange={handleChange}
+              required
+            >
+              <option value="">Chọn vai trò</option>
+              {roles.map(r => <option key={r.roleId} value={r.roleId}>{translateRole(r.roleName)}</option>)}
+            </select>
+          </div>
+
           {/* Buttons */}
           <div className="col-md-2 d-flex gap-2">
             <button className="btn btn-success w-100">
@@ -258,7 +327,7 @@ export default function UserManagement() {
         <input
           type="text"
           className="form-control"
-          placeholder="Tìm kiếm user..."
+          placeholder="Tìm kiếm người dùng..."
           style={{ maxWidth: "300px" }}
           value={searchTerm}
           onChange={(e) => {
@@ -275,14 +344,14 @@ export default function UserManagement() {
             <tr>
               <th>ID</th>
               <th>Avatar</th>
-              <th>Full name</th>
+              <th>Họ tên</th>
               <th>Email</th>
-              <th>Phone</th>
-              <th>Gender</th>
-              <th>DOB</th>
-              <th>Role</th>
-              <th>Active</th>
-              <th>Verify</th>
+              <th>SĐT</th>
+              <th>Giới tính</th>
+              <th>Ngày sinh</th>
+              <th>Vai trò</th>
+              <th>Hoạt động</th>
+              <th>Xác minh</th>
               <th></th>
             </tr>
           </thead>
@@ -307,9 +376,9 @@ export default function UserManagement() {
                 <td>{u.fullName}</td>
                 <td>{u.email}</td>
                 <td>{u.phone}</td>
-                <td>{u.gender}</td>
+                <td>{translateGender(u.gender)}</td>
                 <td>{u.dob ? new Date(u.dob).toLocaleDateString() : ""}</td>
-                <td>{u.roleId}</td>
+                <td>{translateRole(u.roleName)}</td>
                 <td>{u.isActive ? "✔️" : "❌"}</td>
                 <td>{u.isVerify ? "✔️" : "❌"}</td>
 

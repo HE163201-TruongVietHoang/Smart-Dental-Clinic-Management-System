@@ -50,10 +50,12 @@ import DoctorProfile from "./pages/Doctor/DoctorProfile";
 import DoctorDiagnosis from "./pages/Doctor/DoctorDiagnosis";
 import DoctorDiagnosisHistory from "./pages/Doctor/DoctorDiagnosisHistory";
 import ClinicManagerMedicinePage from "./pages/ClinicManager/ClinicManagerMedicinePage";
+
 import DiagnosisStep from "./pages/Doctor/DiagnosisStep";
 import ServicesStep from "./pages/Doctor/ServicesStep";
 import PrescriptionStep from "./pages/Doctor/PrescriptionStep";
 
+import ClinicManagerRoomsPage from "./pages/ClinicManager/
 import PatientAppointmentsPage from "./pages/Receptionist/PatientAppointmentsPage";
 import ReceptionistLayout from "./pages/Receptionist/ReceptionistLayout";
 import ReceptionistProfile from "./pages/Receptionist/ReceptionistProfile";
@@ -68,6 +70,7 @@ import NurseScheduleTable from "./pages/Nurse/NurseSchedule";
 import AdminLayout from "./pages/Admin/AdminLayout";
 import AdminProfile from "./pages/Admin/AdminProfile";
 import UserManagement from "./pages/Admin/UserManagement";
+import RoleManagement from "./pages/Admin/RoleManagement";
 
 import Promotion from "./pages/ClinicManager/Promotion";
 import Invoice from "./pages/ClinicManager/Invoice";
@@ -299,6 +302,14 @@ function App() {
             </ClinicManagerLayout>
           }
         />
+        <Route
+          path="/clinicmanager/rooms"
+          element={
+            <ClinicManagerLayout>
+              <ClinicManagerRoomsPage />
+            </ClinicManagerLayout>
+          }
+        />
 
         {/* Trang cho Nurse */}
         <Route
@@ -417,6 +428,41 @@ function App() {
             </ReceptionistLayout>
           }
         />
+
+        {/* Admin routes */}
+        <Route
+          path="/admin"
+          element={
+            <AdminLayout>
+              <UserManagement />
+            </AdminLayout>
+          }
+        />
+        <Route
+          path="/admin/users"
+          element={
+            <AdminLayout>
+              <UserManagement />
+            </AdminLayout>
+          }
+        />
+        <Route
+          path="/admin/roles"
+          element={
+            <AdminLayout>
+              <RoleManagement />
+            </AdminLayout>
+          }
+        />
+        <Route
+          path="/admin/profile"
+          element={
+            <AdminLayout>
+              <AdminProfile />
+            </AdminLayout>
+          }
+        />
+
         {/* Route 404 */}
         <Route path="*" element={<NotFound />} />
       </Routes>

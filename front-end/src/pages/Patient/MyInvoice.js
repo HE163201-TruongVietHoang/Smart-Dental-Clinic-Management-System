@@ -3,6 +3,7 @@ import Header from "../../components/home/Header/Header";
 import Footer from "../../components/home/Footer/Footer";
 import { getInvoicesByPatient, createPaymentUrl } from "../../api/api";
 import { toast } from "react-toastify";
+import { Modal, Button } from "react-bootstrap";
 
 export default function InvoiceListPage() {
   const [list, setList] = useState([]);
@@ -16,6 +17,10 @@ export default function InvoiceListPage() {
   });
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
+  const [showModal, setShowModal] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState(null);
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [qrUrl, setQrUrl] = useState("");
 
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
@@ -48,12 +53,18 @@ export default function InvoiceListPage() {
     setCurrentPage(1);
   }, [filters]);
 
-  const handlePayment = async (invoice) => {
+  const handlePayment = (invoice) => {
+    setSelectedInvoice(invoice);
+    setShowModal(true);
+  };
+
+  const handleVNPay = async () => {
+    if (!selectedInvoice) return;
     try {
       const payload = {
-        appointmentId: invoice.appointmentId,
-        amount: (invoice.totalAmount || 0) - (invoice.discountAmount || 0), // Sử dụng finalAmount
-        invoiceId: invoice.invoiceId,
+        appointmentId: selectedInvoice.appointmentId,
+        amount: (selectedInvoice.totalAmount || 0) - (selectedInvoice.discountAmount || 0),
+        invoiceId: selectedInvoice.invoiceId,
         bankCode: "",
       };
       const response = await createPaymentUrl(payload);
@@ -65,6 +76,16 @@ export default function InvoiceListPage() {
     } catch (err) {
       toast.error("Lỗi khi thanh toán");
     }
+    setShowModal(false);
+  };
+
+  const handleVietQR = () => {
+    if (!selectedInvoice) return;
+    const amount = (selectedInvoice.totalAmount || 0) - (selectedInvoice.discountAmount || 0);
+    const qrUrl = `https://img.vietqr.io/image/970418-5050421390-compact.png?amount=${amount}&addInfo=Thanh%20toan%20hoa%20don%20${selectedInvoice.invoiceId}&accountName=Smart%20Dental`;
+    setQrUrl(qrUrl);
+    setShowModal(false);
+    setShowQrModal(true);
   };
 
   if (loading) {
@@ -334,6 +355,31 @@ export default function InvoiceListPage() {
         })()}
       </div>
       <Footer />
+      <Modal show={showModal} onHide={() => setShowModal(false)} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>Chọn phương thức thanh toán</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <p>Vui lòng chọn phương thức thanh toán cho hóa đơn #{selectedInvoice?.invoiceId}</p>
+          <div style={{ display: "flex", gap: "16px", justifyContent: "center" }}>
+            <Button variant="primary" onClick={handleVNPay}>
+              Thanh toán bằng VNPay
+            </Button>
+            <Button variant="success" onClick={handleVietQR}>
+              Thanh toán bằng VietQR
+            </Button>
+          </div>
+        </Modal.Body>
+      </Modal>
+      <Modal show={showQrModal} onHide={() => setShowQrModal(false)} centered size="lg">
+        <Modal.Header closeButton>
+          <Modal.Title>Mã QR thanh toán</Modal.Title>
+        </Modal.Header>
+        <Modal.Body style={{ textAlign: "center" }}>
+          <p>Quét mã QR để thanh toán hóa đơn #{selectedInvoice?.invoiceId}</p>
+          <img src={qrUrl} alt="QR Code" style={{ maxWidth: "100%", height: "auto" }} />
+        </Modal.Body>
+      </Modal>
       <style>{`
         .badge-status {
           display: inline-block;
