@@ -5,7 +5,6 @@ export default function ClinicManagerRoomsPage() {
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // ADD state
   const [newName, setNewName] = useState("");
   const [newStatus, setNewStatus] = useState("Available");
   const [error, setError] = useState("");
@@ -17,6 +16,10 @@ export default function ClinicManagerRoomsPage() {
   const [editing, setEditing] = useState(null);
   const [editName, setEditName] = useState("");
   const [editStatus, setEditStatus] = useState("Available");
+
+  // PAGINATION state
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 5;
 
   const token = localStorage.getItem("token");
 
@@ -82,6 +85,7 @@ export default function ClinicManagerRoomsPage() {
       setRooms((prev) => [newRoom, ...prev]);
       setNewName("");
       setNewStatus("Available");
+      toast.success("Thêm phòng thành công!");
     } catch (err) {
       setError(err.message);
     }
@@ -101,6 +105,7 @@ export default function ClinicManagerRoomsPage() {
       if (!res.ok) throw new Error(data.message);
 
       setRooms((prev) => prev.filter((r) => r.roomId !== id));
+      toast.success("Xóa phòng thành công!");
     } catch (err) {
       toast.error(err.message);
     }
@@ -138,6 +143,7 @@ export default function ClinicManagerRoomsPage() {
       );
 
       setEditing(null);
+      toast.success("Cập nhật phòng thành công!");
     } catch (err) {
       toast.error(err.message);
     }
@@ -161,6 +167,16 @@ export default function ClinicManagerRoomsPage() {
     }
   };
 
+  // PAGINATION LOGIC
+  const totalPages = Math.ceil(filtered.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedRooms = filtered.slice(startIndex, startIndex + itemsPerPage);
+
+  // RESET PAGE WHEN SEARCH CHANGES
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search]);
+
   return (
     <div style={{ padding: "30px", minHeight: "100vh" }}>
       <div style={containerStyle}>
@@ -170,28 +186,29 @@ export default function ClinicManagerRoomsPage() {
         <div style={cardStyle}>
           <h3 style={{ marginTop: 0, color: "#1E90FF" }}>Thêm phòng mới</h3>
 
+
           <form
             onSubmit={handleAddRoom}
             style={{ display: "flex", flexDirection: "column", gap: "10px" }}
           >
-            <input
-              type="text"
-              placeholder="Tên phòng..."
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              style={inputStyle}
-            />
-
-            <select
-              value={newStatus}
-              onChange={(e) => setNewStatus(e.target.value)}
-              style={inputStyle}
-            >
-              <option value="Available">Có sẵn</option>
-              <option value="Occupied">Đang sử dụng</option>
-              <option value="Maintenance">Bảo trì</option>
-            </select>
-
+            <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+              <input
+                type="text"
+                placeholder="Tên phòng..."
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                style={{ ...inputStyle, flex: 2 }}
+              />
+              <select
+                value={newStatus}
+                onChange={(e) => setNewStatus(e.target.value)}
+                style={{ ...inputStyle, flex: 1, minWidth: 150 }}
+              >
+                <option value="Available">Có sẵn</option>
+                <option value="Occupied">Đang sử dụng</option>
+                <option value="Maintenance">Bảo trì</option>
+              </select>
+            </div>
             <button type="submit" style={btnPrimary}>
               + Thêm phòng
             </button>
@@ -202,16 +219,22 @@ export default function ClinicManagerRoomsPage() {
 
         {/* ROOM LIST */}
         <div style={{ ...cardStyle, marginTop: "25px" }}>
-          <h3 style={{ marginTop: 0, color: "#1E90FF" }}>Danh sách phòng</h3>
+            {/* Chung một hàng */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
 
-          <input
-            type="text"
-            placeholder="Tìm kiếm..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            style={{ ...inputStyle, marginBottom: 10 }}
-          />
-
+          <div style={{ display: "flex", alignItems: "center", marginBottom: 10 }}>
+            <h3 style={{ margin: 0, color: "#1E90FF" }}>Danh sách phòng</h3>
+            <div style={{ flex: 1, display: "flex", justifyContent: "flex-end" }}>
+              <input
+                type="text"
+                placeholder="Tìm kiếm..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                style={{ ...inputStyle, marginBottom: 0, maxWidth: 250, marginLeft: 400 }}
+              />
+            </div>
+          </div>
+            </div>
           {loading ? (
             <p>Đang tải...</p>
           ) : (
@@ -226,7 +249,7 @@ export default function ClinicManagerRoomsPage() {
               </thead>
 
               <tbody>
-                {filtered.map((r) => (
+                {paginatedRooms.map((r) => (
                   <tr key={r.roomId}>
                     <td style={td}>#{r.roomId}</td>
                     <td style={td}>{r.roomName}</td>
@@ -253,7 +276,7 @@ export default function ClinicManagerRoomsPage() {
                   </tr>
                 ))}
 
-                {filtered.length === 0 && (
+                {paginatedRooms.length === 0 && (
                   <tr>
                     <td
                       colSpan="4"
@@ -267,6 +290,29 @@ export default function ClinicManagerRoomsPage() {
             </table>
           )}
         </div>
+
+        {/* PAGINATION */}
+        {totalPages > 1 && (
+          <div style={{ marginTop: "20px", textAlign: "center" }}>
+            <button
+              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+              style={{ ...btnPrimary, marginRight: "10px" }}
+            >
+              Trước
+            </button>
+            <span style={{ margin: "0 10px" }}>
+              Trang {currentPage} / {totalPages}
+            </span>
+            <button
+              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+              disabled={currentPage === totalPages}
+              style={{ ...btnPrimary, marginLeft: "10px" }}
+            >
+              Sau
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ========================= EDIT MODAL ========================= */}

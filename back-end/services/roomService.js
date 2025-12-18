@@ -1,4 +1,4 @@
-const { getAllRooms, getRoomById, createRoom, updateRoom, deleteRoom } = require("../access/roomAccess");
+const { getAllRooms, getRoomById, getRoomByName, createRoom, updateRoom, deleteRoom } = require("../access/roomAccess");
 
 class RoomService {
   async getAllRooms() {
@@ -27,6 +27,10 @@ class RoomService {
       if (!roomName) {
         throw new Error("Tên phòng là bắt buộc");
       }
+      const existingRoom = await getRoomByName(roomName);
+      if (existingRoom) {
+        throw new Error("Tên phòng đã tồn tại");
+      }
       return await createRoom(roomName, status || 'Available');
     } catch (error) {
       throw new Error("Lỗi khi tạo phòng: " + error.message);
@@ -38,6 +42,10 @@ class RoomService {
       const { roomName, status } = roomData;
       if (!roomName) {
         throw new Error("Tên phòng là bắt buộc");
+      }
+      const existingRoom = await getRoomByName(roomName);
+      if (existingRoom && existingRoom.roomId !== roomId) {
+        throw new Error("Tên phòng đã tồn tại");
       }
       const success = await updateRoom(roomId, roomName, status);
       if (!success) {
