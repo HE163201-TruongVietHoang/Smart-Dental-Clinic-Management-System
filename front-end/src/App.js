@@ -65,6 +65,7 @@ import NurseScheduleTable from "./pages/Nurse/NurseSchedule";
 import AdminLayout from "./pages/Admin/AdminLayout";
 import AdminProfile from "./pages/Admin/AdminProfile";
 import UserManagement from "./pages/Admin/UserManagement";
+import RoleManagement from "./pages/Admin/RoleManagement";
 
 import Promotion from "./pages/ClinicManager/Promotion";
 import Invoice from "./pages/ClinicManager/Invoice";
@@ -385,6 +386,41 @@ function App() {
             </ReceptionistLayout>
           }
         />
+
+        {/* Admin routes */}
+        <Route
+          path="/admin"
+          element={
+            <AdminLayout>
+              <UserManagement />
+            </AdminLayout>
+          }
+        />
+        <Route
+          path="/admin/users"
+          element={
+            <AdminLayout>
+              <UserManagement />
+            </AdminLayout>
+          }
+        />
+        <Route
+          path="/admin/roles"
+          element={
+            <AdminLayout>
+              <RoleManagement />
+            </AdminLayout>
+          }
+        />
+        <Route
+          path="/admin/profile"
+          element={
+            <AdminLayout>
+              <AdminProfile />
+            </AdminLayout>
+          }
+        />
+
         {/* Route 404 */}
         <Route path="*" element={<NotFound />} />
       </Routes>
