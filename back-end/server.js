@@ -28,6 +28,7 @@ const dashboardRoutes = require("./routes/dashboardRoutes");
 const nurseRoutes = require("./routes/nurseRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
+const roomRoutes = require("./routes/roomRoutes");
 //const prescriptionRoutes = require("./routes/prescriptionRoutes");
 
 const app = express();
@@ -67,6 +68,7 @@ app.use("/api/invoices", invoiceRoutes);
 app.use("/api/nurses", nurseRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/rooms", roomRoutes);
 cron.schedule("* * * * *", async () => {
   await appointmentService.autoCancelNoShow(initSocket);
 });
