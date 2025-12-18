@@ -10,6 +10,8 @@ module.exports = {
     const result = await pool.request().input("doctorId", doctorId).query(`
       SELECT 
         a.appointmentId,
+        a.reason,              
+      a.appointmentType,
         u.fullName AS patientName,
         sch.workDate,
         CONVERT(varchar(8), sl.startTime, 108) AS startTime,

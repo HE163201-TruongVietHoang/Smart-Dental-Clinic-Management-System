@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 export default function DoctorDiagnosisHistory() {
   const [history, setHistory] = useState([]);
@@ -8,6 +8,10 @@ export default function DoctorDiagnosisHistory() {
   const [patientFilter, setPatientFilter] = useState("");
   const [serviceFilter, setServiceFilter] = useState("");
   const [selectedItem, setSelectedItem] = useState(null);
+
+  /* ================== PHÂN TRANG ================== */
+  const PAGE_SIZE = 10;
+  const [page, setPage] = useState(1);
 
   const token = localStorage.getItem("token");
 
@@ -52,7 +56,9 @@ export default function DoctorDiagnosisHistory() {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       if (!res.ok) throw new Error();
-      setHistory(await res.json());
+      const data = await res.json();
+      setHistory(Array.isArray(data) ? data : []);
+      setPage(1); // ✅ reset về trang 1 khi filter
     } catch {
       setHistory([]);
     }
@@ -61,6 +67,14 @@ export default function DoctorDiagnosisHistory() {
   useEffect(() => {
     loadHistory();
   }, [dateFilter, patientFilter, serviceFilter, token]);
+
+  /* ================== LOGIC PHÂN TRANG ================== */
+  const totalPages = Math.ceil(history.length / PAGE_SIZE);
+
+  const paginatedHistory = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return history.slice(start, start + PAGE_SIZE);
+  }, [history, page]);
 
   return (
     <div style={{ minHeight: "100vh", padding: "30px" }}>
@@ -118,7 +132,7 @@ export default function DoctorDiagnosisHistory() {
               </tr>
             </thead>
             <tbody>
-              {history.length === 0 ? (
+              {paginatedHistory.length === 0 ? (
                 <tr>
                   <td
                     colSpan={7}
@@ -128,7 +142,7 @@ export default function DoctorDiagnosisHistory() {
                   </td>
                 </tr>
               ) : (
-                history.map((h) => (
+                paginatedHistory.map((h) => (
                   <tr key={h.diagnosisId}>
                     <td>#{h.diagnosisId}</td>
                     <td>{h.patientName}</td>
@@ -156,6 +170,39 @@ export default function DoctorDiagnosisHistory() {
             </tbody>
           </table>
         </div>
+
+        {/* ========== NÚT PHÂN TRANG (KHÔNG ĐỔI STYLE CHUNG) ========== */}
+        {totalPages > 1 && (
+          <div
+            style={{
+              marginTop: "20px",
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              gap: "15px",
+            }}
+          >
+            <button
+              style={btnStyleSmall}
+              disabled={page === 1}
+              onClick={() => setPage((p) => p - 1)}
+            >
+              ← Trước
+            </button>
+
+            <span>
+              Trang {page} / {totalPages}
+            </span>
+
+            <button
+              style={btnStyleSmall}
+              disabled={page === totalPages}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              Sau →
+            </button>
+          </div>
+        )}
 
         {selectedItem && (
           <div style={popupOverlay} onClick={() => setSelectedItem(null)}>

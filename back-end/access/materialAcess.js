@@ -1,9 +1,8 @@
-// services/materialService.js
-// Service layer cho module quản lý vật tư
-// - Tất cả truy vấn SQL tương ứng trực tiếp với schema trong script.sql bạn đã upload
-// - Mỗi hàm có comment giải thích mục đích, input, output
+// access/materialAcess.js
+// Service/Access layer cho module quản lý vật tư
 
 const { getPool, sql } = require("../config/db");
+const { sendNotificationToMany } = require("../access/notificationAccess");
 
 module.exports = {
   async addNewMaterial({ materialName, unit, unitPrice }) {
@@ -13,18 +12,12 @@ module.exports = {
       .input("materialName", sql.NVarChar(100), materialName)
       .input("unit", sql.NVarChar(50), unit)
       .input("unitPrice", sql.Decimal(18, 2), unitPrice).query(`
-      INSERT INTO Materials (materialName, unit, unitPrice, stockQuantity, createdAt, updatedAt)
-      VALUES (@materialName, @unit, @unitPrice, 0, GETDATE(), GETDATE())
-    `);
+        INSERT INTO Materials (materialName, unit, unitPrice, stockQuantity, createdAt, updatedAt)
+        VALUES (@materialName, @unit, @unitPrice, 0, GETDATE(), GETDATE())
+      `);
     return { message: "Thêm vật tư mới thành công!" };
   },
 
-  /**
-   * getAllMaterials
-   * Dành cho: Admin
-   * Mô tả: Lấy danh sách tất cả vật tư hiện có cùng thông tin tồn kho
-   * Trả về: array of materials (materialId, materialName, unit, unitPrice, stockQuantity, createdAt, updatedAt)
-   */
   async getAllMaterials() {
     const pool = await getPool();
     const result = await pool.request().query(`
@@ -35,12 +28,6 @@ module.exports = {
     return result.recordset;
   },
 
-  /**
-   * getAllTransactions
-   * Dành cho: Admin
-   * Mô tả: Lấy toàn bộ lịch sử giao dịch vật tư (nhập, xuất, trả, hỏng)
-   * Join Users để biết ai thao tác; left join Appointments để xem ca liên quan; left join patient name
-   */
   async getAllTransactions() {
     const pool = await getPool();
     const result = await pool.request().query(`
@@ -71,22 +58,31 @@ module.exports = {
   },
 
   /**
-   * addTransaction
-   * Dành cho: Nurse (USE/RETURN) hoặc Admin (IMPORT/DAMAGED)
-   * Mô tả: Thêm 1 dòng vào MaterialTransactions
-   * Input:
-   *  - materialId (int)
-   *  - userId (int)
-   *  - appointmentId (int | null)
-   *  - transactionType (string): 'USE'|'RETURN'|'IMPORT'|'DAMAGED'
-   *  - quantity (decimal)
-   *  - note (string)
-   * Trả về: object message + inserted transaction id (nếu cần)
-   *
-   * LƯU Ý:
-   *  - Trigger (nếu bạn tạo trong DB) sẽ update Materials.stockQuantity tự động.
-   *  - Nếu bạn chưa có trigger, bạn cần tự cập nhật stockQuantity (mình có thể cung cấp đoạn SQL/logic nếu cần).
+   * ✅ CHECK QUYỀN: Y tá có được thao tác vật tư cho appointmentId này không?
+   * Điều kiện:
+   * - NurseShifts.nurseId = @nurseId
+   * - NurseShifts.status = 'Assigned'
+   * - appointment thuộc scheduleId đó thông qua Slots
    */
+  async nurseHasAccessToAppointment(nurseId, appointmentId) {
+    const pool = await getPool();
+    const result = await pool
+      .request()
+      .input("nurseId", sql.Int, nurseId)
+      .input("appointmentId", sql.Int, appointmentId).query(`
+        SELECT TOP 1 1 AS ok
+        FROM NurseShifts ns
+        JOIN Schedules sch ON ns.scheduleId = sch.scheduleId
+        JOIN Slots sl ON sl.scheduleId = sch.scheduleId
+        JOIN Appointments a ON a.slotId = sl.slotId
+        WHERE ns.nurseId = @nurseId
+          AND ns.status = 'Assigned'
+          AND a.appointmentId = @appointmentId
+      `);
+
+    return result.recordset.length > 0;
+  },
+
   async addTransaction({
     materialId,
     userId,
@@ -104,10 +100,10 @@ module.exports = {
       const request = new sql.Request(transaction);
       request.input("materialId", sql.Int, materialId);
 
-      // 🔍 1. Lấy số lượng tồn kho hiện tại
+      // 1) Lấy tồn kho
       const stockResult = await request.query(`
-      SELECT stockQuantity FROM Materials WHERE materialId = @materialId
-    `);
+        SELECT stockQuantity FROM Materials WHERE materialId = @materialId
+      `);
 
       if (stockResult.recordset.length === 0) {
         throw new Error("Không tìm thấy vật tư với materialId đã cung cấp.");
@@ -116,7 +112,7 @@ module.exports = {
       const currentStock = parseFloat(stockResult.recordset[0].stockQuantity);
       const qty = parseFloat(quantity);
 
-      // 🔍 2. Kiểm tra loại giao dịch + xác thực tồn kho
+      // 2) Validate tồn kho
       if (transactionType === "USE" || transactionType === "DAMAGED") {
         if (currentStock < qty) {
           throw new Error(
@@ -125,7 +121,7 @@ module.exports = {
         }
       }
 
-      // 🔹 3. Chèn vào bảng MaterialTransactions
+      // 3) Insert transaction
       const insertReq = new sql.Request(transaction);
       insertReq
         .input("materialId", sql.Int, materialId)
@@ -136,12 +132,13 @@ module.exports = {
         .input("note", sql.NVarChar(255), note);
 
       await insertReq.query(`
-      INSERT INTO MaterialTransactions
-      (materialId, userId, appointmentId, transactionType, quantity, transactionDate, note)
-      VALUES (@materialId, @userId, @appointmentId, @transactionType, @quantity, GETDATE(), @note)
-    `);
+        INSERT INTO MaterialTransactions
+          (materialId, userId, appointmentId, transactionType, quantity, transactionDate, note)
+        VALUES
+          (@materialId, @userId, @appointmentId, @transactionType, @quantity, GETDATE(), @note)
+      `);
 
-      // 🔹 4. Cập nhật tồn kho trong Materials
+      // 4) Update tồn kho
       let newStock = currentStock;
       if (transactionType === "IMPORT" || transactionType === "RETURN") {
         newStock += qty;
@@ -153,10 +150,12 @@ module.exports = {
       updateReq.input("materialId", sql.Int, materialId);
       updateReq.input("newStock", sql.Decimal(18, 2), newStock);
       await updateReq.query(`
-      UPDATE Materials SET stockQuantity = @newStock, updatedAt = GETDATE()
-      WHERE materialId = @materialId
-    `);
+        UPDATE Materials
+        SET stockQuantity = @newStock, updatedAt = GETDATE()
+        WHERE materialId = @materialId
+      `);
 
+      await notifyLowStock(materialId, newStock, transaction);
       await transaction.commit();
 
       return {
@@ -169,19 +168,6 @@ module.exports = {
     }
   },
 
-  /**
-   * addUsedMaterial
-   * Dành cho: Nurse khi ghi nhận vật tư thực tế đã dùng cho 1 diagnosisService (có thể từ appointment)
-   * Input:
-   *  - diagnosisServiceId (int) OR appointmentId (int) -> service will be found via Diagnoses + DiagnosisServices
-   *  - materialId (int)
-   *  - quantityUsed (decimal)
-   *  - note (string)
-   *
-   * Hành động:
-   *  - Nếu client gửi appointmentId thay vì diagnosisServiceId: tìm latest diagnosis cho appointment rồi lấy diagnosisServiceId
-   *  - Insert vào UsedMaterials (diagnosisServiceId, materialId, usedQuantity, note, createdAt)
-   */
   async addUsedMaterial({
     diagnosisServiceId = null,
     appointmentId = null,
@@ -191,9 +177,8 @@ module.exports = {
   }) {
     const pool = await getPool();
 
-    // Nếu chưa có diagnosisServiceId nhưng có appointmentId -> tìm diagnosisId -> diagnosisServiceId (lấy bản ghi đầu/take TOP 1)
+    // Nếu chưa có diagnosisServiceId nhưng có appointmentId -> tìm diagnosisId -> diagnosisServiceId
     if (!diagnosisServiceId && appointmentId) {
-      // Tìm diagnosisId
       const diagRes = await pool
         .request()
         .input("appointmentId", sql.Int, appointmentId).query(`
@@ -207,7 +192,6 @@ module.exports = {
       }
       const diagnosisId = diagRes.recordset[0].diagnosisId;
 
-      // Tìm diagnosisServiceId
       const dsRes = await pool
         .request()
         .input("diagnosisId", sql.Int, diagnosisId).query(`
@@ -230,7 +214,6 @@ module.exports = {
       );
     }
 
-    // Insert vào UsedMaterials
     await pool
       .request()
       .input("diagnosisServiceId", sql.Int, diagnosisServiceId)
@@ -245,66 +228,53 @@ module.exports = {
   },
 
   /**
-   * getTodayAppointments
-   * Dành cho: Nurse
-   * Mô tả: Lấy danh sách appointment cho ngày làm việc hiện tại.
-   * Lưu ý: Appointments -> Slots -> Schedules có workDate; do đó chúng ta join để lọc workDate = GETDATE()
-   * Trả về: thông tin appointment + patient + doctor + slot time + service (nếu đã có diagnosis/diagnosisService)
+   * ✅ Nurse: chỉ lấy các appointment hôm nay thuộc ca trực của nurse
    */
-  async getTodayAppointments() {
+  async getTodayAppointments(nurseId) {
     const pool = await getPool();
-    const result = await pool.request().query(`
-    SELECT
-    a.appointmentId,
-    uPatient.userId AS patientId,
-    uPatient.fullName AS patientName,
-    uDoc.userId AS doctorId,
-    uDoc.fullName AS doctorName,
-    sch.workDate,
-    CONVERT(VARCHAR(5), sl.startTime, 108) AS startTime,
-    CONVERT(VARCHAR(5), sl.endTime, 108) AS endTime,
-
-    -- GỘP TẤT CẢ DỊCH VỤ THÀNH 1 CHUỖI
-    STRING_AGG(srv.serviceName, ', ') WITHIN GROUP (ORDER BY srv.serviceName) 
-        AS serviceNames,
-
-    -- Lấy 1 serviceId đầu tiên (nếu nurse cần để load vật tư)
-    MIN(ds.serviceId) AS serviceId,
-
-    a.status
-FROM Appointments a
-LEFT JOIN Users uPatient ON a.patientId = uPatient.userId
-LEFT JOIN Users uDoc ON a.doctorId = uDoc.userId
-LEFT JOIN Slots sl ON a.slotId = sl.slotId
-LEFT JOIN Schedules sch ON sl.scheduleId = sch.scheduleId
-LEFT JOIN Diagnoses d ON d.appointmentId = a.appointmentId
-LEFT JOIN DiagnosisServices ds ON ds.diagnosisId = d.diagnosisId
-LEFT JOIN Services srv ON srv.serviceId = ds.serviceId
-WHERE 
-    sch.workDate = CAST(GETDATE() AS DATE)
-    AND a.status IN ('InProgress', 'DiagnosisCompleted')
-GROUP BY 
-    a.appointmentId,
-    uPatient.userId,
-    uPatient.fullName,
-    uDoc.userId,
-    uDoc.fullName,
-    sch.workDate,
-    sl.startTime,
-    sl.endTime,
-    a.status
-ORDER BY sl.startTime;
-  `);
+    const result = await pool.request().input("nurseId", sql.Int, nurseId)
+      .query(`
+        SELECT
+          a.appointmentId,
+          uPatient.userId AS patientId,
+          uPatient.fullName AS patientName,
+          uDoc.userId AS doctorId,
+          uDoc.fullName AS doctorName,
+          sch.workDate,
+          CONVERT(VARCHAR(5), sl.startTime, 108) AS startTime,
+          CONVERT(VARCHAR(5), sl.endTime, 108) AS endTime,
+          STRING_AGG(srv.serviceName, ', ') WITHIN GROUP (ORDER BY srv.serviceName) AS serviceNames,
+          MIN(ds.serviceId) AS serviceId,
+          a.status
+        FROM NurseShifts ns
+        JOIN Schedules sch ON ns.scheduleId = sch.scheduleId
+        JOIN Slots sl ON sl.scheduleId = sch.scheduleId
+        JOIN Appointments a ON a.slotId = sl.slotId
+        LEFT JOIN Users uPatient ON a.patientId = uPatient.userId
+        LEFT JOIN Users uDoc ON a.doctorId = uDoc.userId
+        LEFT JOIN Diagnoses d ON d.appointmentId = a.appointmentId
+        LEFT JOIN DiagnosisServices ds ON ds.diagnosisId = d.diagnosisId
+        LEFT JOIN Services srv ON srv.serviceId = ds.serviceId
+        WHERE ns.nurseId = @nurseId
+          AND ns.status = 'Assigned'
+          AND sch.workDate = CAST(GETDATE() AS DATE)
+          AND a.status IN ('InProgress', 'DiagnosisCompleted')
+        GROUP BY
+          a.appointmentId,
+          uPatient.userId,
+          uPatient.fullName,
+          uDoc.userId,
+          uDoc.fullName,
+          sch.workDate,
+          sl.startTime,
+          sl.endTime,
+          a.status
+        ORDER BY sl.startTime;
+      `);
 
     return result.recordset;
   },
 
-  /**
-   * getMaterialsByService
-   * Dành cho: Nurse
-   * Mô tả: Lấy danh sách vật tư định mức (ServiceMaterials) cho 1 serviceId
-   * Trả về: materialId, materialName, unit, standardQuantity
-   */
   async getMaterialsByService(serviceId) {
     const pool = await getPool();
     const result = await pool.request().input("serviceId", sql.Int, serviceId)
@@ -323,41 +293,36 @@ ORDER BY sl.startTime;
     return result.recordset;
   },
 
-  /**
-   * getMaterialsByAppointment
-   * Lấy vật tư của TẤT CẢ dịch vụ trong 1 appointment
-   * Trả về: vật tư gộp (không trùng), standardQuantity được cộng dồn
-   */
   async getMaterialsByAppointment(appointmentId) {
     const pool = await getPool();
 
-    // 1. Lấy diagnosisId từ appointment
+    // 1) diagnosisId
     const diagRes = await pool
       .request()
       .input("appointmentId", sql.Int, appointmentId).query(`
-      SELECT diagnosisId 
-      FROM Diagnoses 
-      WHERE appointmentId = @appointmentId
-    `);
+        SELECT diagnosisId
+        FROM Diagnoses
+        WHERE appointmentId = @appointmentId
+      `);
 
-    if (!diagRes.recordset.length) return []; // chưa có diagnosis → chưa có vật tư
+    if (!diagRes.recordset.length) return [];
 
     const diagnosisId = diagRes.recordset[0].diagnosisId;
 
-    // 2. Lấy danh sách serviceId của appointment này
+    // 2) serviceIds
     const dsRes = await pool
       .request()
       .input("diagnosisId", sql.Int, diagnosisId).query(`
-      SELECT serviceId
-      FROM DiagnosisServices
-      WHERE diagnosisId = @diagnosisId
-    `);
+        SELECT serviceId
+        FROM DiagnosisServices
+        WHERE diagnosisId = @diagnosisId
+      `);
 
     if (!dsRes.recordset.length) return [];
 
     const serviceIds = dsRes.recordset.map((s) => s.serviceId);
 
-    // 3. Lấy vật tư của tất cả service trong 1 query
+    // 3) lấy vật tư của các service
     const smRes = await pool.request().query(`
       SELECT 
         sm.serviceId,
@@ -371,12 +336,9 @@ ORDER BY sl.startTime;
       ORDER BY sm.materialId
     `);
 
-    const rows = smRes.recordset;
-
-    // 4. Gộp vật tư trùng (nếu nhiều dịch vụ dùng chung)
+    // 4) gộp vật tư trùng
     const map = {};
-
-    rows.forEach((r) => {
+    smRes.recordset.forEach((r) => {
       if (!map[r.materialId]) {
         map[r.materialId] = {
           materialId: r.materialId,
@@ -393,12 +355,7 @@ ORDER BY sl.startTime;
 
     return Object.values(map);
   },
-  /**
-   * getMaterialUsageReport
-   * Dành cho: Admin
-   * Mô tả: Báo cáo so sánh "chuẩn (ServiceMaterials)" vs "thực tế (UsedMaterials)"
-   * Trả về các cột: serviceName, materialName, Standard, Actual (usedQuantity), Difference
-   */
+
   async getMaterialUsageReport() {
     const pool = await getPool();
     const result = await pool.request().query(`
@@ -420,10 +377,6 @@ ORDER BY sl.startTime;
     return result.recordset;
   },
 
-  /**
-   * updateServiceMaterial
-   * Cập nhật standardQuantity trong ServiceMaterials
-   */
   async updateServiceMaterial(serviceId, materialId, standardQuantity) {
     const pool = await getPool();
     const result = await pool
@@ -443,14 +396,9 @@ ORDER BY sl.startTime;
     return { message: "Cập nhật định mức thành công!" };
   },
 
-  /**
-   * addMaterialToService
-   * Thêm mới 1 dòng vào ServiceMaterials
-   */
   async addMaterialToService(serviceId, materialId, standardQuantity) {
     const pool = await getPool();
 
-    // Kiểm tra trùng
     const exists = await pool
       .request()
       .input("serviceId", sql.Int, serviceId)
@@ -475,10 +423,6 @@ ORDER BY sl.startTime;
     return { message: "Thêm vật tư vào dịch vụ thành công!" };
   },
 
-  /**
-   * removeMaterialFromService
-   * Xóa 1 dòng khỏi ServiceMaterials
-   */
   async removeMaterialFromService(serviceId, materialId) {
     const pool = await getPool();
     const result = await pool
@@ -496,10 +440,6 @@ ORDER BY sl.startTime;
     return { message: "Xóa vật tư khỏi dịch vụ thành công!" };
   },
 
-  /**
-   * getAllServices
-   * Lấy danh sách dịch vụ
-   */
   async getAllServices() {
     const pool = await getPool();
     const result = await pool.request().query(`
@@ -510,10 +450,6 @@ ORDER BY sl.startTime;
     return result.recordset;
   },
 
-  /**
-   * getAllServiceMaterials
-   * Lấy toàn bộ ServiceMaterials + thông tin vật tư
-   */
   async getAllServiceMaterials() {
     const pool = await getPool();
     const result = await pool.request().query(`
@@ -531,3 +467,36 @@ ORDER BY sl.startTime;
     return result.recordset;
   },
 };
+
+async function notifyLowStock(materialId, newStock, transaction) {
+  if (newStock >= 10) return;
+
+  const request = new sql.Request(transaction);
+
+  const matRes = await request.input("materialId", sql.Int, materialId).query(`
+      SELECT materialName
+      FROM Materials
+      WHERE materialId = @materialId
+    `);
+
+  if (!matRes.recordset.length) return;
+
+  const materialName = matRes.recordset[0].materialName;
+
+  const adminRes = await request.query(`
+    SELECT u.userId
+    FROM Users u
+    JOIN Roles r ON u.roleId = r.roleId
+    WHERE r.roleName = 'ClinicManager'
+  `);
+
+  const notifications = adminRes.recordset.map((a) => ({
+    receiverId: a.userId,
+    senderId: null,
+    title: "⚠️ Cảnh báo tồn kho",
+    message: `Vật tư "${materialName}" sắp hết (còn ${newStock})`,
+    type: "LOW_STOCK",
+  }));
+
+  await sendNotificationToMany(notifications);
+}
