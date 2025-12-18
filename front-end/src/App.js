@@ -55,7 +55,7 @@ import DiagnosisStep from "./pages/Doctor/DiagnosisStep";
 import ServicesStep from "./pages/Doctor/ServicesStep";
 import PrescriptionStep from "./pages/Doctor/PrescriptionStep";
 
-import ClinicManagerRoomsPage from "./pages/ClinicManager/
+import ClinicManagerRoomsPage from "./pages/ClinicManager/ClinicManagerRoomsPage";
 import PatientAppointmentsPage from "./pages/Receptionist/PatientAppointmentsPage";
 import ReceptionistLayout from "./pages/Receptionist/ReceptionistLayout";
 import ReceptionistProfile from "./pages/Receptionist/ReceptionistProfile";
