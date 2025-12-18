@@ -50,6 +50,7 @@ import DoctorProfile from "./pages/Doctor/DoctorProfile";
 import DoctorDiagnosis from "./pages/Doctor/DoctorDiagnosis";
 import DoctorDiagnosisHistory from "./pages/Doctor/DoctorDiagnosisHistory";
 import ClinicManagerMedicinePage from "./pages/ClinicManager/ClinicManagerMedicinePage";
+import ClinicManagerRoomsPage from "./pages/ClinicManager/ClinicManagerRoomsPage";
 
 import PatientAppointmentsPage from "./pages/Receptionist/PatientAppointmentsPage";
 import ReceptionistLayout from "./pages/Receptionist/ReceptionistLayout";
@@ -265,6 +266,14 @@ function App() {
           element={
             <ClinicManagerLayout>
               <ClinicManagerMedicinePage />
+            </ClinicManagerLayout>
+          }
+        />
+        <Route
+          path="/clinicmanager/rooms"
+          element={
+            <ClinicManagerLayout>
+              <ClinicManagerRoomsPage />
             </ClinicManagerLayout>
           }
         />

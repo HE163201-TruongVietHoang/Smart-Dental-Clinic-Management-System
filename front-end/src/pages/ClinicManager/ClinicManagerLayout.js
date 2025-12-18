@@ -12,6 +12,7 @@ import {
   FaPercent,
   FaFileInvoiceDollar,
   FaPills,
+  FaBuilding,
 } from "react-icons/fa";
 
 function ClinicManagerLayout({ children }) {
@@ -58,6 +59,11 @@ function ClinicManagerLayout({ children }) {
       name: "Quản lý thuốc",
       icon: <FaPills />,
       path: "/clinicmanager/medicines",
+    },
+    {
+      name: "Quản lý phòng",
+      icon: <FaBuilding />,
+      path: "/clinicmanager/rooms",
     },
   ];
 
