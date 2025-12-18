@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "react-toastify";
 
@@ -20,14 +20,6 @@ export default function DiagnosisStep() {
 
   /* ================== UTILS ================== */
   const formatTime = (t) => (t ? t.split(":").slice(0, 2).join(":") : "--:--");
-
-  const renderStatus = (status) => {
-    if (status === "WaitingForMaterials")
-      return { text: "Chờ y tá lấy vật tư", color: "#f59e0b", bg: "#fef3c7" };
-    if (status === "DiagnosisCompleted")
-      return { text: "Đã đủ vật tư", color: "#2563eb", bg: "#dbeafe" };
-    return { text: "Đang khám", color: "#059669", bg: "#d1fae5" };
-  };
 
   /* ================== FETCH APPOINTMENTS ================== */
   useEffect(() => {
@@ -85,9 +77,10 @@ export default function DiagnosisStep() {
   return (
     <div style={wrap}>
       <div style={card}>
-        <h2 style={title}>Bước 1/3 – Chọn ca & Chẩn đoán</h2>
+        <h2 style={title}>Chọn ca & Chẩn đoán</h2>
         <p style={sub}>Chọn ca khám bên dưới để bắt đầu</p>
 
+        {/* ===== CHỌN CA KHÁM ===== */}
         <h3 style={{ marginBottom: 12 }}>Ca khám hôm nay</h3>
 
         {appointments.length === 0 ? (
@@ -97,8 +90,6 @@ export default function DiagnosisStep() {
             {appointments.map((a) => {
               const isSelected =
                 selectedAppointment?.appointmentId === a.appointmentId;
-
-              const statusUI = renderStatus(a.status);
 
               return (
                 <div
@@ -114,15 +105,7 @@ export default function DiagnosisStep() {
                     <span style={timeText}>
                       {formatTime(a.startTime)} – {formatTime(a.endTime)}
                     </span>
-                    <span
-                      style={{
-                        ...badge,
-                        background: statusUI.bg,
-                        color: statusUI.color,
-                      }}
-                    >
-                      {statusUI.text}
-                    </span>
+                    <span style={badge}>{a.appointmentType}</span>
                   </div>
 
                   <div style={patientName}>{a.patientName}</div>
@@ -141,6 +124,7 @@ export default function DiagnosisStep() {
           </div>
         )}
 
+        {/* ===== FORM CHẨN ĐOÁN ===== */}
         {selectedAppointment && (
           <>
             <h3 style={{ marginTop: 24 }}>Chẩn đoán</h3>
@@ -176,7 +160,7 @@ export default function DiagnosisStep() {
   );
 }
 
-/* ================== STYLES (GIỮ NGUYÊN) ================== */
+/* ================== STYLES ================== */
 const wrap = {
   minHeight: "100vh",
   padding: 24,
@@ -217,11 +201,16 @@ const rowBetween = {
   marginBottom: 6,
 };
 
-const timeText = { fontWeight: 700, color: "#065f46" };
+const timeText = {
+  fontWeight: 700,
+  color: "#065f46",
+};
 
 const badge = {
   padding: "4px 10px",
   borderRadius: 999,
+  background: "#d1fae5",
+  color: "#065f46",
   fontSize: 12,
   fontWeight: 700,
 };
@@ -244,7 +233,10 @@ const footerRow = {
   alignItems: "center",
 };
 
-const idText = { fontSize: 12, color: "#6b7280" };
+const idText = {
+  fontSize: 12,
+  color: "#6b7280",
+};
 
 const selectedText = {
   fontSize: 12,
