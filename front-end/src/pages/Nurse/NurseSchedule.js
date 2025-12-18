@@ -1,10 +1,20 @@
-import React, { useEffect, useState } from "react";
-import { Table, Modal, Button } from "react-bootstrap";
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  Card,
+  Button,
+  Modal,
+  Badge,
+  Spinner,
+  Tabs,
+  Tab,
+} from "react-bootstrap";
 
-export default function NurseScheduleTable() {
+export default function NurseSchedule() {
   const [schedules, setSchedules] = useState([]);
-  const [showModal, setShowModal] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [selectedShift, setSelectedShift] = useState(null);
+  const [showModal, setShowModal] = useState(false);
+  const [activeTab, setActiveTab] = useState("today");
 
   useEffect(() => {
     fetchSchedules();
@@ -16,22 +26,61 @@ export default function NurseScheduleTable() {
       const res = await fetch("http://localhost:5000/api/nurses/schedules", {
         headers: { Authorization: `Bearer ${token}` },
       });
+
       const data = await res.json();
-      console.log("Schedules from backend:", data); // DEBUG
-      if (res.ok) setSchedules(data.schedules);
-      else console.error("Lỗi khi lấy lịch:", data.message);
+
+      if (res.ok) {
+        const list = Array.isArray(data)
+          ? data
+          : Array.isArray(data.schedules)
+          ? data.schedules
+          : [];
+        setSchedules(list);
+      } else {
+        setSchedules([]);
+      }
     } catch (err) {
-      console.error("Lỗi fetchSchedules:", err);
+      console.error(err);
+      setSchedules([]);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleShiftClick = async (shiftId) => {
-    console.log("Clicked shiftId:", shiftId); // DEBUG
-    if (!shiftId) {
-      console.error("shiftId undefined, không thể fetch chi tiết ca");
-      return;
-    }
+  // ===== PHÂN LOẠI CA =====
+  const { todayShifts, upcomingShifts, pastShifts } = useMemo(() => {
+    const todayStr = new Date().toISOString().slice(0, 10);
 
+    const today = [];
+    const upcoming = [];
+    const past = [];
+
+    schedules.forEach((s) => {
+      if (s.workDate === todayStr) today.push(s);
+      else if (s.workDate > todayStr) upcoming.push(s);
+      else past.push(s);
+    });
+
+    const sortByTimeAsc = (a, b) =>
+      new Date(`${a.workDate}T${a.startTime}`) -
+      new Date(`${b.workDate}T${b.startTime}`);
+
+    const sortByTimeDesc = (a, b) =>
+      new Date(`${b.workDate}T${b.startTime}`) -
+      new Date(`${a.workDate}T${a.startTime}`);
+
+    today.sort(sortByTimeAsc);
+    upcoming.sort(sortByTimeAsc);
+    past.sort(sortByTimeDesc);
+
+    return {
+      todayShifts: today,
+      upcomingShifts: upcoming,
+      pastShifts: past,
+    };
+  }, [schedules]);
+
+  const openShiftDetail = async (shiftId) => {
     try {
       const token = localStorage.getItem("token");
       const res = await fetch(
@@ -41,101 +90,105 @@ export default function NurseScheduleTable() {
         }
       );
       const data = await res.json();
-      console.log("Shift detail from backend:", data); // DEBUG
       if (res.ok) {
         setSelectedShift(data.detail);
         setShowModal(true);
-      } else {
-        console.error("Lỗi khi lấy chi tiết ca:", data.message);
       }
     } catch (err) {
-      console.error("Lỗi handleShiftClick:", err);
+      console.error(err);
     }
   };
 
-  const days = [
-    "Thứ hai",
-    "Thứ ba",
-    "Thứ tư",
-    "Thứ năm",
-    "Thứ sáu",
-    "Thứ bảy",
-    "Chủ nhật",
-  ];
+  if (loading) {
+    return (
+      <div className="text-center mt-5">
+        <Spinner animation="border" />
+        <p className="mt-2">Đang tải lịch làm việc...</p>
+      </div>
+    );
+  }
 
-  // Group schedules by day (0=Sunday, 1=Monday,...)
-  const groupedByDay = days.map((day, idx) =>
-    schedules.filter((s) => {
-      const date = new Date(s.workDate);
-      const dateDay = date.getDay() === 0 ? 7 : date.getDay(); // Sunday = 7
-      return dateDay === idx + 1;
-    })
+  const renderShiftCard = (s, highlight = false) => (
+    <Card
+      key={s.shiftId}
+      className={`mb-3 shadow-sm ${
+        highlight ? "border-primary" : "border-light"
+      }`}
+    >
+      <Card.Body>
+        <div className="d-flex justify-content-between align-items-start">
+          <div>
+            <h5 className="mb-1">
+              {new Date(s.workDate).toLocaleDateString()}
+            </h5>
+            <div className="text-muted">
+              ⏰ {s.startTime} – {s.endTime}
+            </div>
+            <div className="mt-2">
+              👨‍⚕️ <strong>{s.doctorName}</strong>
+            </div>
+            <div>🏥 Phòng: {s.roomName || "-"}</div>
+          </div>
+
+          <div className="text-end">
+            <Badge bg={highlight ? "primary" : "secondary"}>{s.status}</Badge>
+            <div className="mt-2">
+              <Button
+                size="sm"
+                variant="outline-primary"
+                onClick={() => openShiftDetail(s.shiftId)}
+              >
+                Chi tiết
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Card.Body>
+    </Card>
   );
 
   return (
     <div className="container mt-4">
-      <h2>Lịch làm việc y tá (Tuần)</h2>
-      {/* Container cuộn dọc với chiều cao cố định */}
-      <div style={{ maxHeight: "600px", overflowY: "auto" }}>
-        <Table bordered hover responsive>
-          <thead>
-            <tr>
-              <th>Giờ / Thứ</th>
-              {days.map((day) => (
-                <th key={day}>{day}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {[...Array(24)].map((_, idx) => {
-              const hour = idx; // 0 → 23
-              const hourStr = hour.toString().padStart(2, "0") + ":00";
+      <h3 className="mb-4">🩺 Lịch làm việc của tôi</h3>
 
-              return (
-                <tr key={hourStr}>
-                  <td>{hourStr}</td>
-                  {groupedByDay.map((shifts, dayIdx) => {
-                    const shift = shifts.find((s) => {
-                      const [startH, startM] = s.startTime
-                        .split(":")
-                        .map(Number);
-                      const [endH, endM] = s.endTime.split(":").map(Number);
-                      const startMinutes = startH * 60 + startM;
-                      const endMinutes = endH * 60 + endM;
-                      const currentMinutes = hour * 60;
-                      return (
-                        currentMinutes >= startMinutes &&
-                        currentMinutes < endMinutes
-                      );
-                    });
+      <Tabs
+        activeKey={activeTab}
+        onSelect={(k) => setActiveTab(k)}
+        className="mb-3"
+      >
+        <Tab eventKey="today" title={`Hôm nay (${todayShifts.length})`}>
+          {todayShifts.length === 0 ? (
+            <p>Hôm nay bạn không có ca nào.</p>
+          ) : (
+            todayShifts.map((s) => renderShiftCard(s, true))
+          )}
+        </Tab>
 
-                    return (
-                      <td
-                        key={dayIdx}
-                        style={{
-                          cursor: shift ? "pointer" : "default",
-                          backgroundColor: shift ? "#d1e7dd" : "",
-                        }}
-                        onClick={() => shift && handleShiftClick(shift.shiftId)}
-                      >
-                        {shift ? `${shift.doctorName} (${shift.roomName})` : ""}
-                      </td>
-                    );
-                  })}
-                </tr>
-              );
-            })}
-          </tbody>
-        </Table>
-      </div>
+        <Tab eventKey="upcoming" title={`Sắp tới (${upcomingShifts.length})`}>
+          {upcomingShifts.length === 0 ? (
+            <p>Không có ca sắp tới.</p>
+          ) : (
+            upcomingShifts.map((s) => renderShiftCard(s, false))
+          )}
+        </Tab>
 
+        <Tab eventKey="past" title={`Đã qua (${pastShifts.length})`}>
+          {pastShifts.length === 0 ? (
+            <p>Chưa có ca nào đã qua.</p>
+          ) : (
+            pastShifts.map((s) => renderShiftCard(s, false))
+          )}
+        </Tab>
+      </Tabs>
+
+      {/* MODAL CHI TIẾT */}
       <Modal show={showModal} onHide={() => setShowModal(false)}>
         <Modal.Header closeButton>
-          <Modal.Title>Chi tiết ca làm việc</Modal.Title>
+          <Modal.Title>Chi tiết ca trực</Modal.Title>
         </Modal.Header>
         <Modal.Body>
           {selectedShift ? (
-            <div>
+            <>
               <p>
                 <strong>Bác sĩ:</strong> {selectedShift.doctorName}
               </p>
@@ -143,19 +196,17 @@ export default function NurseScheduleTable() {
                 <strong>Phòng:</strong> {selectedShift.roomName}
               </p>
               <p>
-                <strong>Ngày làm việc:</strong>{" "}
+                <strong>Ngày:</strong>{" "}
                 {new Date(selectedShift.workDate).toLocaleDateString()}
               </p>
               <p>
-                <strong>Giờ bắt đầu:</strong> {selectedShift.startTime}
+                <strong>Giờ:</strong> {selectedShift.startTime} –{" "}
+                {selectedShift.endTime}
               </p>
               <p>
-                <strong>Giờ kết thúc:</strong> {selectedShift.endTime}
+                <strong>Trạng thái:</strong> {selectedShift.nurseShiftStatus}
               </p>
-              <p>
-                <strong>Trạng thái ca:</strong> {selectedShift.nurseShiftStatus}
-              </p>
-            </div>
+            </>
           ) : (
             <p>Đang tải...</p>
           )}

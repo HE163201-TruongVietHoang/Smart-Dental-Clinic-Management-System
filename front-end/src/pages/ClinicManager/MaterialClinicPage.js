@@ -47,6 +47,12 @@ export default function ClinicManagerMaterialPage() {
   const [newMaterialId, setNewMaterialId] = useState("");
   const [newStandardQty, setNewStandardQty] = useState("");
 
+  const TRANSACTION_TYPE_LABEL = {
+    IMPORT: "Nhập kho",
+    USE: "Sử dụng",
+    RETURN: "Hoàn trả",
+  };
+
   /* ==============================
      API HELPER
   ============================== */
@@ -519,9 +525,11 @@ export default function ClinicManagerMaterialPage() {
                               padding: "4px 10px",
                               borderRadius: "8px",
                               fontSize: "12px",
+                              fontWeight: "bold",
                             }}
                           >
-                            {t.transactionType}
+                            {TRANSACTION_TYPE_LABEL[t.transactionType] ||
+                              t.transactionType}
                           </span>
                         </td>
                         <td style={{ padding: "12px" }}>{t.materialName}</td>

@@ -10,7 +10,7 @@ import {
   FaCalendarPlus,
   FaFileInvoiceDollar,
   FaComments,
-  FaMoneyBillWave
+  FaMoneyBillWave,
 } from "react-icons/fa";
 
 function ReceptionistLayout({ children }) {
@@ -43,11 +43,11 @@ function ReceptionistLayout({ children }) {
       icon: <FaComments />,
       path: "/receptionist/chat",
     },
-    {
-      name: "Thanh toán",
-      icon: <FaMoneyBillWave />,
-      path: "/receptionist/payments",
-    },
+    // {
+    //   name: "Thanh toán",
+    //   icon: <FaMoneyBillWave />,
+    //   path: "/receptionist/payments",
+    // },
   ];
 
   // 🧠 Hàm xử lý đăng xuất

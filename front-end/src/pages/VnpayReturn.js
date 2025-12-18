@@ -149,11 +149,17 @@ const VnpayReturn = () => {
                     )}
                     {result && (
                       <div>
-                        {result.success ? (
+                        {result.success && result.message !== 'Payment failed' ? (
                           <div>
                             <Alert variant="success" className="d-flex align-items-center justify-content-center gap-2 mb-4 fs-5">
                               <FaCheckCircle className="me-2 text-success" size={28} />
-                              <span>{result.message}</span>
+                              <span>{
+                                result.message === 'Payment successful'
+                                  ? 'Thanh toán thành công!'
+                                  : result.message === 'Payment failed'
+                                    ? 'Thanh toán thất bại!'
+                                    : result.message
+                              }</span>
                             </Alert>
                             <div className="vnpay-return-info mb-4">
                               <div className="d-flex justify-content-between align-items-center mb-2">
@@ -173,7 +179,13 @@ const VnpayReturn = () => {
                         ) : (
                           <Alert variant="danger" className="d-flex align-items-center justify-content-center gap-2 mb-4 fs-5">
                             <FaTimesCircle className="me-2 text-danger" size={28} />
-                            <span>{result.message}</span>
+                            <span>{
+                              result.message === 'Payment successful'
+                                ? 'Thanh toán thành công!'
+                                : result.message === 'Payment failed'
+                                  ? 'Thanh toán thất bại!'
+                                  : result.message
+                            }</span>
                           </Alert>
                         )}
                         <Button variant="outline-primary" className="px-4 py-2 rounded-pill fw-semibold vnpay-return-btn mt-2" onClick={handleBackToInvoices}>

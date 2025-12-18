@@ -1,4 +1,4 @@
-const roleAccess = require('../access/roleAccess');
+const roleAccess = require("../access/roleAccess");
 
 async function getAllRoles() {
   return await roleAccess.getAllRoles();
@@ -25,5 +25,5 @@ module.exports = {
   getRoleById,
   createRole,
   updateRole,
-  deleteRole
+  deleteRole,
 };

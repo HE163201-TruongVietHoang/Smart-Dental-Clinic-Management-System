@@ -114,11 +114,11 @@ const ChatWindow = ({ conversation, messages, loading, onLoadMore, loadingMore, 
                   wordWrap: 'break-word',
                   position: 'relative'
                 }}
-                title={`${msg.senderName} (${msg.senderEmail}) - ${new Date(msg.sentAt).toLocaleString('vi-VN')}`}
+                title={`${msg.senderName} (${msg.senderEmail}) - ${new Date(new Date(msg.sentAt).getTime() - 7 * 60 * 60 * 1000).toLocaleDateString('vi-VN')}`}
                 >
                   <div>{msg.content}</div>
                   <div style={{ fontSize: '10px', opacity: 0.7, marginTop: '4px', textAlign: 'right' }}>
-                    {new Date(msg.sentAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                    {new Date(new Date(msg.sentAt).getTime() - 7 * 60 * 60 * 1000).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })}
                   </div>
                 </div>
                 {isRightSide && (

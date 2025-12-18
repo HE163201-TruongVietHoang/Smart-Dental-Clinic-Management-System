@@ -51,6 +51,11 @@ import DoctorDiagnosis from "./pages/Doctor/DoctorDiagnosis";
 import DoctorDiagnosisHistory from "./pages/Doctor/DoctorDiagnosisHistory";
 import ClinicManagerMedicinePage from "./pages/ClinicManager/ClinicManagerMedicinePage";
 
+import DiagnosisStep from "./pages/Doctor/DiagnosisStep";
+import ServicesStep from "./pages/Doctor/ServicesStep";
+import PrescriptionStep from "./pages/Doctor/PrescriptionStep";
+
+import ClinicManagerRoomsPage from "./pages/ClinicManager/ClinicManagerRoomsPage";
 import PatientAppointmentsPage from "./pages/Receptionist/PatientAppointmentsPage";
 import ReceptionistLayout from "./pages/Receptionist/ReceptionistLayout";
 import ReceptionistProfile from "./pages/Receptionist/ReceptionistProfile";
@@ -65,6 +70,7 @@ import NurseScheduleTable from "./pages/Nurse/NurseSchedule";
 import AdminLayout from "./pages/Admin/AdminLayout";
 import AdminProfile from "./pages/Admin/AdminProfile";
 import UserManagement from "./pages/Admin/UserManagement";
+import RoleManagement from "./pages/Admin/RoleManagement";
 
 import Promotion from "./pages/ClinicManager/Promotion";
 import Invoice from "./pages/ClinicManager/Invoice";
@@ -234,14 +240,43 @@ function App() {
             </DoctorLayout>
           }
         />
+        {/* Doctor Diagnosis Wizard */}
         <Route
           path="/doctor/diagnosis"
           element={
             <DoctorLayout>
-              <DoctorDiagnosis />
+              <DiagnosisStep />
             </DoctorLayout>
           }
         />
+
+        <Route
+          path="/doctor/diagnosis/:appointmentId"
+          element={
+            <DoctorLayout>
+              <DiagnosisStep />
+            </DoctorLayout>
+          }
+        />
+
+        <Route
+          path="/doctor/diagnosis/:appointmentId/services"
+          element={
+            <DoctorLayout>
+              <ServicesStep />
+            </DoctorLayout>
+          }
+        />
+
+        <Route
+          path="/doctor/diagnosis/:appointmentId/prescription"
+          element={
+            <DoctorLayout>
+              <PrescriptionStep />
+            </DoctorLayout>
+          }
+        />
+
         <Route
           path="/doctor/diagnosis/history"
           element={
@@ -264,6 +299,14 @@ function App() {
           element={
             <ClinicManagerLayout>
               <ClinicManagerMedicinePage />
+            </ClinicManagerLayout>
+          }
+        />
+        <Route
+          path="/clinicmanager/rooms"
+          element={
+            <ClinicManagerLayout>
+              <ClinicManagerRoomsPage />
             </ClinicManagerLayout>
           }
         />
@@ -385,6 +428,41 @@ function App() {
             </ReceptionistLayout>
           }
         />
+
+        {/* Admin routes */}
+        <Route
+          path="/admin"
+          element={
+            <AdminLayout>
+              <UserManagement />
+            </AdminLayout>
+          }
+        />
+        <Route
+          path="/admin/users"
+          element={
+            <AdminLayout>
+              <UserManagement />
+            </AdminLayout>
+          }
+        />
+        <Route
+          path="/admin/roles"
+          element={
+            <AdminLayout>
+              <RoleManagement />
+            </AdminLayout>
+          }
+        />
+        <Route
+          path="/admin/profile"
+          element={
+            <AdminLayout>
+              <AdminProfile />
+            </AdminLayout>
+          }
+        />
+
         {/* Route 404 */}
         <Route path="*" element={<NotFound />} />
       </Routes>

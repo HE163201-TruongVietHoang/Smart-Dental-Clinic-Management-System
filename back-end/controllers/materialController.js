@@ -1,20 +1,14 @@
 // controllers/materialController.js
-// Controller gom các endpoint cho module Material (Admin + Nurse).
-// Mỗi hàm chỉ nhận request, gọi service tương ứng và trả JSON response.
-// Note: validate input ở controller trước khi gọi service (cơ bản).
 
 const materialService = require("../access/materialAcess");
 
-/**
- * PUT /api/materials/service/:serviceId/material/:materialId
- * ClinicManager: Cập nhật số lượng định mức của vật tư trong dịch vụ
- */
+// ===== ClinicManager =====
 exports.updateServiceMaterial = async (req, res) => {
   try {
     const { serviceId, materialId } = req.params;
     const { standardQuantity } = req.body;
 
-    if (!standardQuantity || standardQuantity < 0) {
+    if (standardQuantity == null || standardQuantity < 0) {
       return res
         .status(400)
         .json({ error: "standardQuantity là bắt buộc và phải >= 0" });
@@ -33,16 +27,12 @@ exports.updateServiceMaterial = async (req, res) => {
   }
 };
 
-/**
- * POST /api/materials/service/:serviceId/material
- * ClinicManager: Thêm vật tư mới vào dịch vụ
- */
 exports.addMaterialToService = async (req, res) => {
   try {
     const { serviceId } = req.params;
     const { materialId, standardQuantity } = req.body;
 
-    if (!materialId || !standardQuantity || standardQuantity < 0) {
+    if (!materialId || standardQuantity == null || standardQuantity < 0) {
       return res
         .status(400)
         .json({ error: "materialId và standardQuantity là bắt buộc" });
@@ -61,10 +51,6 @@ exports.addMaterialToService = async (req, res) => {
   }
 };
 
-/**
- * DELETE /api/materials/service/:serviceId/material/:materialId
- * ClinicManager: Xóa vật tư khỏi dịch vụ
- */
 exports.removeMaterialFromService = async (req, res) => {
   try {
     const { serviceId, materialId } = req.params;
@@ -81,10 +67,6 @@ exports.removeMaterialFromService = async (req, res) => {
   }
 };
 
-/**
- * GET /api/materials/service/all
- * ClinicManager: Lấy danh sách tất cả dịch vụ
- */
 exports.getAllServices = async (req, res) => {
   try {
     const data = await materialService.getAllServices();
@@ -95,10 +77,6 @@ exports.getAllServices = async (req, res) => {
   }
 };
 
-/**
- * GET /api/materials/service/materials
- * ClinicManager: Lấy toàn bộ định mức vật tư theo dịch vụ
- */
 exports.getAllServiceMaterials = async (req, res) => {
   try {
     const data = await materialService.getAllServiceMaterials();
@@ -108,10 +86,8 @@ exports.getAllServiceMaterials = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
-/**
- * GET /api/materials
- * Admin: Lấy toàn bộ vật tư
- */
+
+// ===== Admin =====
 exports.getAllMaterials = async (req, res) => {
   try {
     const data = await materialService.getAllMaterials();
@@ -122,10 +98,6 @@ exports.getAllMaterials = async (req, res) => {
   }
 };
 
-/**
- * GET /api/materials/transactions
- * Admin: Lấy lịch sử giao dịch vật tư
- */
 exports.getAllTransactions = async (req, res) => {
   try {
     const data = await materialService.getAllTransactions();
@@ -136,87 +108,19 @@ exports.getAllTransactions = async (req, res) => {
   }
 };
 
-/**
- * POST /api/materials/use
- * Nurse: Lấy vật tư (ghi 1 transaction 'USE')
- * Body: { materialId, userId, appointmentId (optional), quantity, note }
- */
-exports.useMaterial = async (req, res) => {
-  try {
-    const {
-      materialId,
-      userId,
-      appointmentId = null,
-      quantity,
-      note = null,
-    } = req.body;
-    if (!materialId || !userId || quantity == null) {
-      return res
-        .status(400)
-        .json({ error: "materialId, userId và quantity là bắt buộc." });
-    }
-    const result = await materialService.addTransaction({
-      materialId,
-      userId,
-      appointmentId,
-      transactionType: "USE",
-      quantity,
-      note,
-    });
-    res.json(result);
-  } catch (err) {
-    console.error("useMaterial error:", err);
-    res.status(500).json({ error: err.message });
-  }
-};
-
-/**
- * POST /api/materials/return
- * Nurse: Hoàn vật tư thừa (ghi 1 transaction 'RETURN')
- * Body: { materialId, userId, appointmentId (optional), quantity, note }
- */
-exports.returnMaterial = async (req, res) => {
-  try {
-    const {
-      materialId,
-      userId,
-      appointmentId = null,
-      quantity,
-      note = null,
-    } = req.body;
-    if (!materialId || !userId || quantity == null) {
-      return res
-        .status(400)
-        .json({ error: "materialId, userId và quantity là bắt buộc." });
-    }
-    const result = await materialService.addTransaction({
-      materialId,
-      userId,
-      appointmentId,
-      transactionType: "RETURN",
-      quantity,
-      note,
-    });
-    res.json(result);
-  } catch (err) {
-    console.error("returnMaterial error:", err);
-    res.status(500).json({ error: err.message });
-  }
-};
-
-/**
- * POST /api/materials/import
- * Admin: Nhập kho (ghi 1 transaction 'IMPORT')
- * Body: { materialId, userId, quantity, note }
- */
 exports.importMaterial = async (req, res) => {
   try {
+    // ✅ Không tin userId từ body nếu bạn muốn chặt hơn:
+    // const userId = req.user?.userId;
+    // Nhưng mình giữ theo flow hiện tại của bạn:
     const { materialId, userId, quantity, note = null } = req.body;
+
     if (!materialId || !userId || quantity == null) {
       return res
         .status(400)
         .json({ error: "materialId, userId và quantity là bắt buộc." });
     }
+
     const result = await materialService.addTransaction({
       materialId,
       userId,
@@ -224,6 +128,7 @@ exports.importMaterial = async (req, res) => {
       quantity,
       note,
     });
+
     res.json(result);
   } catch (err) {
     console.error("importMaterial error:", err);
@@ -231,90 +136,10 @@ exports.importMaterial = async (req, res) => {
   }
 };
 
-/**
- * POST /api/materials/used
- * Nurse: Ghi nhận vật tư thực tế đã dùng
- * Body: { diagnosisServiceId (preferred) OR appointmentId, materialId, quantityUsed, note }
- */
-exports.addUsedMaterial = async (req, res) => {
-  try {
-    const {
-      diagnosisServiceId = null,
-      appointmentId = null,
-      materialId,
-      quantityUsed,
-      note = null,
-    } = req.body;
-    if (!materialId || quantityUsed == null) {
-      return res
-        .status(400)
-        .json({ error: "materialId và quantityUsed là bắt buộc." });
-    }
-    const result = await materialService.addUsedMaterial({
-      diagnosisServiceId,
-      appointmentId,
-      materialId,
-      quantityUsed,
-      note,
-    });
-    res.json(result);
-  } catch (err) {
-    console.error("addUsedMaterial error:", err);
-    res.status(500).json({ error: err.message });
-  }
-};
-
-/**
- * GET /api/materials/appointments
- * Nurse: Lấy danh sách ca khám hôm nay (kèm patient/doctor/service nếu có)
- */
-exports.getTodayAppointments = async (req, res) => {
-  try {
-    const data = await materialService.getTodayAppointments();
-    res.json(data);
-  } catch (err) {
-    console.error("getTodayAppointments error:", err);
-    res.status(500).json({ error: err.message });
-  }
-};
-
-/**
- * GET /api/materials/service/:serviceId
- * Nurse: Lấy vật tư định mức cho 1 dịch vụ
- */
-exports.getMaterialsByService = async (req, res) => {
-  try {
-    const { serviceId } = req.params;
-    if (!serviceId)
-      return res.status(400).json({ error: "serviceId required" });
-    const data = await materialService.getMaterialsByService(
-      parseInt(serviceId, 10)
-    );
-    res.json(data);
-  } catch (err) {
-    console.error("getMaterialsByService error:", err);
-    res.status(500).json({ error: err.message });
-  }
-};
-
-/**
- * GET /api/materials/report
- * Admin: Lấy báo cáo so sánh chuẩn vs thực tế sử dụng vật tư
- */
-exports.getMaterialUsageReport = async (req, res) => {
-  try {
-    const data = await materialService.getMaterialUsageReport();
-    res.json(data);
-  } catch (err) {
-    console.error("getMaterialUsageReport error:", err);
-    res.status(500).json({ error: err.message });
-  }
-};
-
 exports.addNewMaterial = async (req, res) => {
   try {
     const { materialName, unit, unitPrice } = req.body;
-    if (!materialName || !unit || !unitPrice) {
+    if (!materialName || !unit || unitPrice == null) {
       return res.status(400).json({ error: "Thiếu thông tin vật tư." });
     }
     const result = await materialService.addNewMaterial({
@@ -329,20 +154,213 @@ exports.addNewMaterial = async (req, res) => {
   }
 };
 
+// ===== Nurse (ĐÃ KHÓA QUYỀN) =====
+
+exports.getTodayAppointments = async (req, res) => {
+  try {
+    const nurseId = req.user?.userId;
+    if (!nurseId) return res.status(401).json({ error: "Vui lòng đăng nhập." });
+
+    const data = await materialService.getTodayAppointments(nurseId);
+    res.json(data);
+  } catch (err) {
+    console.error("getTodayAppointments error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+exports.getMaterialsByService = async (req, res) => {
+  try {
+    const { serviceId } = req.params;
+    if (!serviceId)
+      return res.status(400).json({ error: "serviceId required" });
+
+    const data = await materialService.getMaterialsByService(
+      parseInt(serviceId, 10)
+    );
+    res.json(data);
+  } catch (err) {
+    console.error("getMaterialsByService error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
 exports.getMaterialsByAppointment = async (req, res) => {
   try {
-    const { appointmentId } = req.params;
+    const nurseId = req.user?.userId;
+    if (!nurseId) return res.status(401).json({ error: "Vui lòng đăng nhập." });
 
+    const { appointmentId } = req.params;
     if (!appointmentId)
       return res.status(400).json({ error: "appointmentId required" });
 
-    const data = await materialService.getMaterialsByAppointment(
-      parseInt(appointmentId, 10)
-    );
+    const apptId = parseInt(appointmentId, 10);
 
+    // ✅ CHECK QUYỀN
+    const allowed = await materialService.nurseHasAccessToAppointment(
+      nurseId,
+      apptId
+    );
+    if (!allowed) {
+      return res
+        .status(403)
+        .json({ error: "Bạn không được phép xem vật tư của ca khám này." });
+    }
+
+    const data = await materialService.getMaterialsByAppointment(apptId);
     res.json(data);
   } catch (err) {
     console.error("getMaterialsByAppointment error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+exports.useMaterial = async (req, res) => {
+  try {
+    const nurseId = req.user?.userId;
+    if (!nurseId) return res.status(401).json({ error: "Vui lòng đăng nhập." });
+
+    const {
+      materialId,
+      appointmentId = null,
+      quantity,
+      note = null,
+    } = req.body;
+
+    if (!materialId || quantity == null) {
+      return res
+        .status(400)
+        .json({ error: "materialId và quantity là bắt buộc." });
+    }
+
+    if (appointmentId != null) {
+      const allowed = await materialService.nurseHasAccessToAppointment(
+        nurseId,
+        parseInt(appointmentId, 10)
+      );
+      if (!allowed) {
+        return res
+          .status(403)
+          .json({ error: "Bạn không được phép lấy vật tư cho ca khám này." });
+      }
+    }
+
+    const result = await materialService.addTransaction({
+      materialId,
+      userId: nurseId, // ✅ LẤY TỪ TOKEN
+      appointmentId,
+      transactionType: "USE",
+      quantity,
+      note,
+    });
+
+    res.json(result);
+  } catch (err) {
+    console.error("useMaterial error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+exports.returnMaterial = async (req, res) => {
+  try {
+    const nurseId = req.user?.userId;
+    if (!nurseId) return res.status(401).json({ error: "Vui lòng đăng nhập." });
+
+    const {
+      materialId,
+      appointmentId = null,
+      quantity,
+      note = null,
+    } = req.body;
+
+    if (!materialId || quantity == null) {
+      return res
+        .status(400)
+        .json({ error: "materialId và quantity là bắt buộc." });
+    }
+
+    if (appointmentId != null) {
+      const allowed = await materialService.nurseHasAccessToAppointment(
+        nurseId,
+        parseInt(appointmentId, 10)
+      );
+      if (!allowed) {
+        return res
+          .status(403)
+          .json({ error: "Bạn không được phép hoàn vật tư cho ca khám này." });
+      }
+    }
+
+    const result = await materialService.addTransaction({
+      materialId,
+      userId: nurseId, // ✅ LẤY TỪ TOKEN
+      appointmentId,
+      transactionType: "RETURN",
+      quantity,
+      note,
+    });
+
+    res.json(result);
+  } catch (err) {
+    console.error("returnMaterial error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+exports.addUsedMaterial = async (req, res) => {
+  try {
+    const nurseId = req.user?.userId;
+    if (!nurseId) return res.status(401).json({ error: "Vui lòng đăng nhập." });
+
+    const {
+      diagnosisServiceId = null,
+      appointmentId = null,
+      materialId,
+      quantityUsed,
+      note = null,
+    } = req.body;
+
+    if (!materialId || quantityUsed == null) {
+      return res
+        .status(400)
+        .json({ error: "materialId và quantityUsed là bắt buộc." });
+    }
+
+    // ✅ Nếu nurse gửi appointmentId thì check quyền trước
+    if (appointmentId != null) {
+      const allowed = await materialService.nurseHasAccessToAppointment(
+        nurseId,
+        parseInt(appointmentId, 10)
+      );
+      if (!allowed) {
+        return res
+          .status(403)
+          .json({ error: "Bạn không được phép ghi vật tư cho ca khám này." });
+      }
+    }
+
+    const result = await materialService.addUsedMaterial({
+      diagnosisServiceId,
+      appointmentId,
+      materialId,
+      quantityUsed,
+      note,
+    });
+
+    res.json(result);
+  } catch (err) {
+    console.error("addUsedMaterial error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// ===== Admin report =====
+exports.getMaterialUsageReport = async (req, res) => {
+  try {
+    const data = await materialService.getMaterialUsageReport();
+    res.json(data);
+  } catch (err) {
+    console.error("getMaterialUsageReport error:", err);
     res.status(500).json({ error: err.message });
   }
 };
