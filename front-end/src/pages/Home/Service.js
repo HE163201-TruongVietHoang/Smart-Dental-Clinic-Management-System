@@ -195,10 +195,21 @@ export default function ServicesPage() {
                         <h5 className="fw-bold mb-2">{s.serviceName}</h5>
 
                         {/* Description */}
-                        <p className="text-muted small">{s.description}</p>
+                        <p
+                          className="text-muted small"
+                          style={{
+                            whiteSpace: "pre-line",
+                            display: "-webkit-box",
+                            WebkitLineClamp: 3,
+                            WebkitBoxOrient: "vertical",
+                            overflow: "hidden",
+                          }}
+                        >
+                          {s.description}
+                        </p>
 
                         {/* Price */}
-                        {s.price && (
+                        {s.price !== null && s.price !== undefined && (
                           <p className="fw-semibold">{formatPrice(s.price)}</p>
                         )}
                       </div>

@@ -1,13 +1,49 @@
 const { getPool, sql } = require("../config/db");
-const { checkSlot, markAsBooked, unmarkAsBooked } = require("../access/slotAccess");
+const {
+  checkSlot,
+  markAsBooked,
+  unmarkAsBooked,
+} = require("../access/slotAccess");
 const { sendNotificationToMany } = require("../access/notificationAccess");
 const { getByIdPatient } = require("../access/patientAccess");
-const { create, getByUser, getAll, getById, cancelAppointments, countUserCancellations, updateStatus, findUserByEmailOrPhone, createUser, addServiceToAppointment, hasCompletedAppointment } = require("../access/appointmentAccess");
+const {
+  create,
+  getByUser,
+  getAll,
+  getById,
+  cancelAppointments,
+  countUserCancellations,
+  updateStatus,
+  findUserByEmailOrPhone,
+  createUser,
+  addServiceToAppointment,
+  hasCompletedAppointment,
+} = require("../access/appointmentAccess");
 const { normalizeTime, minutesToHHMM } = require("../utils/timeUtils");
 const { getIO } = require("../utils/socket");
 const appointmentService = {
-  async makeAppointment({ patientId, doctorId, slotId, reason, workDate, appointmentType }, io) {
+  async makeAppointment(
+    { patientId, doctorId, slotId, reason, workDate, appointmentType },
+    io
+  ) {
     const pool = await getPool();
+    const userResult = await pool
+      .request()
+      .input("userId", sql.Int, patientId)
+      .query(`SELECT isActive FROM Users WHERE userId = @userId`);
+
+    if (!userResult.recordset.length) {
+      throw new Error("Người dùng không tồn tại");
+    }
+
+    if (Number(userResult.recordset[0].isActive) === 0) {
+      throw new Error(
+        "Tài khoản của bạn đã bị khóa do hủy lịch quá nhiều lần. Vui lòng liên hệ lễ tân."
+      );
+    }
+    console.log("patientId:", patientId);
+    console.log("isActive:", userResult.recordset[0].isActive);
+
     // Transaction
     const transaction = new sql.Transaction(pool);
     await transaction.begin();
@@ -17,11 +53,14 @@ const appointmentService = {
       slot = await checkSlot(slotId, transaction);
       if (!slot) throw new Error("Slot không tồn tại");
       if (slot.isBooked) throw new Error("Slot đã được đặt");
-      const hasCompleted = await hasCompletedAppointment(patientId, transaction);
+      const hasCompleted = await hasCompletedAppointment(
+        patientId,
+        transaction
+      );
 
-      if (!hasCompleted && appointmentType === "tai kham") {
-        throw new Error("Bệnh nhân chưa từng khám trước đây, không thể đặt tái khám.");
-      }
+      // if (!hasCompleted && appointmentType === "tai kham") {
+      //   throw new Error("Bệnh nhân chưa từng khám trước đây, không thể đặt tái khám.");
+      // }
 
       await markAsBooked(slotId, transaction);
 
@@ -40,18 +79,21 @@ const appointmentService = {
     slot = await checkSlot(slotId);
     // Chuẩn bị danh sách notification
     const notifyUsers = [];
-    const timeStr = slot.startTime instanceof Date
-      ? slot.startTime.toISOString().substring(11, 16)
-      : slot.startTime;
+    const timeStr =
+      slot.startTime instanceof Date
+        ? slot.startTime.toISOString().substring(11, 16)
+        : slot.startTime;
 
-    const workDateStr = slot.workDate ? slot.workDate.toISOString().slice(0, 10) : null;
+    const workDateStr = slot.workDate
+      ? slot.workDate.toISOString().slice(0, 10)
+      : null;
     // Bệnh nhân
     notifyUsers.push({
       receiverId: patientId,
       senderId: null,
       title: "Đặt lịch thành công",
       message: `Bạn đã đặt lịch vào ${timeStr} ${workDateStr}`,
-      type: "appointment"
+      type: "appointment",
     });
     const patient = await getByIdPatient(patientId);
     // Bác sĩ
@@ -60,7 +102,7 @@ const appointmentService = {
       senderId: patientId,
       title: "Có lịch hẹn mới",
       message: `Bệnh nhân ${patient.fullName} vừa đặt lịch vào ${timeStr} ${workDateStr}`,
-      type: "appointment"
+      type: "appointment",
     });
 
     // Gửi tất cả notifications + realtime bằng helper
@@ -69,24 +111,22 @@ const appointmentService = {
     return appointment;
   },
 
-
-
   async getUserAppointments(userId) {
     const appointments = await getByUser(userId);
-    return appointments.map(a => ({
+    return appointments.map((a) => ({
       ...a,
       workDate: a.workDate ? a.workDate.toISOString().slice(0, 10) : null,
       startTime: a.startTime.toISOString().slice(11, 16),
-      endTime: a.endTime.toISOString().slice(11, 16)
+      endTime: a.endTime.toISOString().slice(11, 16),
     }));
   },
   async getAllAppointments() {
     const appointments = await getAll();
-    return appointments.map(a => ({
+    return appointments.map((a) => ({
       ...a,
       workDate: a.workDate ? a.workDate.toISOString().slice(0, 10) : null,
       startTime: a.startTime.toISOString().slice(11, 16),
-      endTime: a.endTime.toISOString().slice(11, 16)
+      endTime: a.endTime.toISOString().slice(11, 16),
     }));
   },
 
@@ -95,77 +135,139 @@ const appointmentService = {
     const transaction = new sql.Transaction(pool);
 
     try {
-      // 1. Kiểm tra số lần hủy trước khi bắt đầu
-      const cancelCount = await countUserCancellations(userId);
-      if (cancelCount >= 5) {
-        await pool.request()
-          .input("userId", sql.Int, userId)
-          .query(`UPDATE Users SET isActive = 0 WHERE userId = @userId`);
+      await transaction.begin();
 
+      // 1. Lấy appointment
+      const appointment = await getById(appointmentId);
+      if (!appointment) {
+        await transaction.rollback();
+        return { success: false, message: "Không tìm thấy cuộc hẹn" };
+      }
+
+      if (appointment.patientId !== userId) {
+        await transaction.rollback();
+        return { success: false, message: "Không có quyền hủy cuộc hẹn này" };
+      }
+
+      // 2. Kiểm tra rule 12h
+      const appointmentDate = new Date(appointment.workDate);
+      const [h, m] = normalizeTime(appointment.startTime)
+        .split(":")
+        .map(Number);
+      appointmentDate.setHours(h, m, 0, 0);
+
+      const now = new Date();
+      const diffHours = (appointmentDate - now) / (1000 * 60 * 60);
+      if (diffHours < 12) {
+        await transaction.rollback();
         return {
           success: false,
-          code: "ACCOUNT_LOCKED",
-          message: "Bạn đã hủy quá 5 lần — tài khoản bị khóa!"
+          message: "Không thể hủy — chỉ được hủy trước ít nhất 12 giờ",
         };
       }
+
+      // 3. Hủy appointment hiện tại
+      await cancelAppointments(appointmentId, transaction);
+
+      // 4. Mở lại slot
+      await unmarkAsBooked(appointment.slotId, transaction);
+
+      // 5. Update updatedAt
+      await transaction
+        .request()
+        .input("appointmentId", sql.Int, appointmentId)
+        .query(
+          `UPDATE Appointments 
+         SET updatedAt = GETDATE() 
+         WHERE appointmentId = @appointmentId`
+        );
+
+      await transaction.commit();
+
+      // 🔔 Realtime
+      if (io) io.emit("slotReleased", { slotId: appointment.slotId });
+
+      // ============================
+      // 6. ĐẾM SỐ LẦN HỦY (SAU COMMIT)
+      // ============================
+      const cancelCount = await countUserCancellations(userId);
+
+      // ⚠️ Cảnh báo lần 3
       if (cancelCount === 3) {
         await sendNotificationToMany([
           {
             receiverId: userId,
             senderId: null,
             title: "Cảnh báo hủy lịch",
-            message: `Bạn đã hủy 3 lần hẹn trong tháng này. Hủy thêm 2 lần nữa sẽ bị khóa tài khoản!`,
-            type: "appointment"
-          }
+            message:
+              "Bạn đã hủy 3 lần trong tháng này. Hủy thêm 2 lần nữa sẽ bị khóa tài khoản.",
+            type: "appointment",
+          },
         ]);
       }
-      await transaction.begin();
 
-      // 2. Lấy appointment
-      const appointment = await getById(appointmentId);
-      if (!appointment)
-        return { success: false, message: "Không tìm thấy cuộc hẹn" };
+      // 🔒 Nếu >= 5 → KHÓA + AUTO HỦY PHẦN CÒN LẠI
+      if (cancelCount >= 5) {
+        // 7. Khóa tài khoản
+        await pool
+          .request()
+          .input("userId", sql.Int, userId)
+          .query(`UPDATE Users SET isActive = 0 WHERE userId = @userId`);
 
-      if (appointment.patientId !== userId)
-        return { success: false, message: "Không có quyền hủy" };
+        // 8. Lấy các appointment Scheduled còn lại
+        const remaining = await pool.request().input("userId", sql.Int, userId)
+          .query(`
+          SELECT appointmentId, slotId
+          FROM Appointments
+          WHERE patientId = @userId AND status = 'Scheduled'
+        `);
 
-      // 3. Kiểm tra thời gian
-      const appointmentDate = new Date(appointment.workDate);
-      const [h, m] = normalizeTime(appointment.startTime).split(":").map(Number);
-      appointmentDate.setHours(h, m, 0, 0);
+        // 9. Auto hủy toàn bộ
+        for (const appt of remaining.recordset) {
+          const t = new sql.Transaction(pool);
+          try {
+            await t.begin();
 
-      const now = new Date();
-      if ((appointmentDate - now) / (1000 * 60 * 60) < 12) {
-        return {
-          success: false,
-          message: "Không thể hủy — chỉ được hủy trước ít nhất 12 giờ!"
-        };
+            await cancelAppointments(appt.appointmentId, t);
+            await unmarkAsBooked(appt.slotId, t);
+
+            await t.commit();
+
+            if (io) io.emit("slotReleased", { slotId: appt.slotId });
+          } catch (e) {
+            await t.rollback();
+            console.error(
+              "Auto-cancel failed for appointment:",
+              appt.appointmentId,
+              e
+            );
+          }
+        }
+
+        // 10. Notify user bị khóa
+        await sendNotificationToMany([
+          {
+            receiverId: userId,
+            senderId: null,
+            title: "Tài khoản bị khóa",
+            message:
+              "Bạn đã hủy quá 5 lần. Tài khoản đã bị khóa và các lịch hẹn còn lại đã bị hủy.",
+            type: "system",
+          },
+        ]);
       }
 
-      // 4. Hủy appointment
-      await cancelAppointments(appointmentId, transaction);
-
-      // 5. Mở lại slot
-      await unmarkAsBooked(appointment.slotId, transaction);
-
-      // 6. update updatedAt
-      await transaction.request()
-        .input("appointmentId", sql.Int, appointmentId)
-        .query(`UPDATE Appointments SET updatedAt = GETDATE() WHERE appointmentId = @appointmentId`);
-
-      await transaction.commit();
-
-      // Realtime update
-      if (io) io.emit("slotReleased", { slotId: appointment.slotId });
-
-      return { success: true, message: "Hủy cuộc hẹn thành công" };
-
+      return {
+        success: true,
+        message: "Hủy cuộc hẹn thành công",
+      };
     } catch (err) {
-      try { await transaction.rollback(); } catch (_) { }
+      try {
+        await transaction.rollback();
+      } catch (_) {}
       return { success: false, message: err.message };
     }
-  }
-  ,
+  },
   async markInProgress(appointmentId) {
     const pool = await getPool();
     const transaction = new sql.Transaction(pool);
@@ -176,7 +278,10 @@ const appointmentService = {
       await updateStatus(appointmentId, "InProgress", transaction);
 
       await transaction.commit();
-      return { success: true, message: "Appointment đã chuyển sang InProgress" };
+      return {
+        success: true,
+        message: "Appointment đã chuyển sang InProgress",
+      };
     } catch (err) {
       await transaction.rollback();
       throw err;
@@ -207,10 +312,11 @@ const appointmentService = {
           const [h, m] = startStr.split(":").map(Number);
 
           const workDate = new Date(
-            new Date(appt.workDate).toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" })
+            new Date(appt.workDate).toLocaleString("en-US", {
+              timeZone: "Asia/Ho_Chi_Minh",
+            })
           );
           workDate.setHours(h, m, 0, 0);
-
 
           const now = new Date();
           const diffMinutes = (now - workDate) / (1000 * 60);
@@ -226,9 +332,12 @@ const appointmentService = {
             await unmarkAsBooked(appt.slotId, transaction);
 
             // Cập nhật updatedAt
-            await transaction.request()
+            await transaction
+              .request()
               .input("appointmentId", sql.Int, appt.appointmentId)
-              .query(`UPDATE Appointments SET updatedAt = GETDATE() WHERE appointmentId = @appointmentId`);
+              .query(
+                `UPDATE Appointments SET updatedAt = GETDATE() WHERE appointmentId = @appointmentId`
+              );
 
             await transaction.commit();
 
@@ -238,7 +347,8 @@ const appointmentService = {
             // Kiểm tra số lần hủy
             const cancelCount = await countUserCancellations(appt.patientId);
             if (cancelCount >= 5) {
-              await pool.request()
+              await pool
+                .request()
                 .input("userId", sql.Int, appt.patientId)
                 .query(`UPDATE Users SET isActive = 0 WHERE userId = @userId`);
             }
@@ -249,21 +359,38 @@ const appointmentService = {
                   senderId: null,
                   title: "Cảnh báo hủy lịch",
                   message: `Bạn đã hủy 3 lần hẹn trong tháng này. Hủy thêm 2 lần nữa sẽ bị khóa tài khoản!`,
-                  type: "appointment"
-                }
+                  type: "appointment",
+                },
               ]);
             }
           }
-
         } catch (innerErr) {
-          console.error(`Error processing appointment ${appt.appointmentId}:`, innerErr);
+          console.error(
+            `Error processing appointment ${appt.appointmentId}:`,
+            innerErr
+          );
         }
       }
     } catch (err) {
       console.error("Error in auto-cancel no-show:", err);
     }
   },
-  async makeAppointmentForReceptionist({ email, phone, fullName, gender, dob, address, doctorId, slotId, reason, workDate, appointmentType }, io) {
+  async makeAppointmentForReceptionist(
+    {
+      email,
+      phone,
+      fullName,
+      gender,
+      dob,
+      address,
+      doctorId,
+      slotId,
+      reason,
+      workDate,
+      appointmentType,
+    },
+    io
+  ) {
     const pool = await getPool();
     const transaction = new sql.Transaction(pool);
     await transaction.begin();
@@ -274,7 +401,14 @@ const appointmentService = {
 
       //  Nếu chưa tồn tại thì tạo mới
       if (!patient) {
-        patient = await createUser({ email, phone, fullName, gender, dob, address });
+        patient = await createUser({
+          email,
+          phone,
+          fullName,
+          gender,
+          dob,
+          address,
+        });
       }
 
       //  Kiểm tra slot
@@ -285,21 +419,23 @@ const appointmentService = {
       await markAsBooked(slotId, transaction);
 
       // 4 Tạo appointment
-      const appointment = await create({
-        patientId: patient.userId,
-        doctorId,
-        slotId,
-        reason,
-        workDate,
-        appointmentType
-      }, transaction);
+      const appointment = await create(
+        {
+          patientId: patient.userId,
+          doctorId,
+          slotId,
+          reason,
+          workDate,
+          appointmentType,
+        },
+        transaction
+      );
 
       await transaction.commit();
 
       if (io) io.emit("slotBooked", { slotId });
 
       return { success: true, appointment, patientId: patient.userId };
-
     } catch (err) {
       await transaction.rollback();
       throw err;
@@ -312,15 +448,17 @@ const appointmentService = {
 
     return {
       ...appointment,
-      workDate: appointment.workDate ? appointment.workDate.toISOString().slice(0, 10) : null,
+      workDate: appointment.workDate
+        ? appointment.workDate.toISOString().slice(0, 10)
+        : null,
       startTime: appointment.startTime.toISOString().slice(11, 16),
-      endTime: appointment.endTime.toISOString().slice(11, 16)
+      endTime: appointment.endTime.toISOString().slice(11, 16),
     };
   },
 
   async addServiceToAppointment(appointmentId, serviceId) {
     await addServiceToAppointment(appointmentId, serviceId);
     return { success: true, message: "Dịch vụ đã được thêm vào cuộc hẹn" };
-  }
+  },
 };
 module.exports = { appointmentService };

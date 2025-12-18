@@ -1,4 +1,8 @@
-const { getAvailable, checkSlot, markAsBooked } = require("../access/slotAccess");
+const {
+  getAvailable,
+  checkSlot,
+  markAsBooked,
+} = require("../access/slotAccess");
 
 const slotService = {
   async getAvailableSlots(doctorId, date) {
@@ -12,7 +16,7 @@ const slotService = {
 
     await markAsBooked(slotId);
     return slotId;
-  }
+  },
 };
 
 module.exports = { slotService };

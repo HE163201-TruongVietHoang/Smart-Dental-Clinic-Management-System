@@ -70,10 +70,9 @@ export default function ServiceDetail() {
           </h2>
 
           {/* Description */}
-          <div
-            className=" fs-5 text-muted mb-4"
-            dangerouslySetInnerHTML={{ __html: service.description }}
-          ></div>
+          <div className="text-muted small" style={{ whiteSpace: "pre-line" }}>
+            {service.description}
+          </div>
 
           <div className="row mt-4">
             {/* Price */}
