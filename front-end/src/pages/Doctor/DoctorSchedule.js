@@ -299,7 +299,7 @@ export default function DoctorSchedule({ doctorId }) {
                       }}
                     >
                       <span>
-                        🕒 {slot.startTime} - {slot.endTime}
+                        {slot.startTime} - {slot.endTime}
                       </span>
                       <span
                         style={{

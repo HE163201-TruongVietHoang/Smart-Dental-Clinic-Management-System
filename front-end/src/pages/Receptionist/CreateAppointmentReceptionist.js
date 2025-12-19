@@ -222,6 +222,7 @@ export default function CreateAppointmentReceptionist() {
                       name="dob"
                       value={form.dob}
                       onChange={handleChange}
+                      max={new Date().toISOString().split("T")[0]}
                       required
                     />
                   </div>

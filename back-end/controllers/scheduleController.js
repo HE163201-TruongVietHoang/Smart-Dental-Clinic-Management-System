@@ -26,21 +26,23 @@ async function createScheduleRequestController(req, res) {
     const result = await createMultipleSchedules(doctorId, note, schedules);
 
     if (result.conflicts?.length > 0) {
-      const dbConflicts = result.conflicts.filter(c => c.type === "Database");
-      const internalConflicts = result.conflicts.filter(c => c.type === "Internal");
+      const dbConflicts = result.conflicts.filter((c) => c.type === "Database");
+      const internalConflicts = result.conflicts.filter(
+        (c) => c.type === "Internal"
+      );
 
       let message = "";
 
       if (dbConflicts.length > 0) {
         message += " Trùng với lịch có sẵn trong hệ thống:\n";
-        dbConflicts.forEach(c => {
+        dbConflicts.forEach((c) => {
           message += `- Ngày ${c.workDate} từ ${c.startTime} đến ${c.endTime}. Lý do: ${c.message}\n`;
         });
       }
 
       if (internalConflicts.length > 0) {
         message += " Các khung giờ bạn chọn bị trùng nhau:\n";
-        internalConflicts.forEach(c => {
+        internalConflicts.forEach((c) => {
           message += `- Ngày ${c.workDate}: ${c.message}\n`;
         });
       }
@@ -49,10 +51,9 @@ async function createScheduleRequestController(req, res) {
         success: false,
         message: message.trim(),
         databaseConflicts: dbConflicts,
-        internalConflicts: internalConflicts
+        internalConflicts: internalConflicts,
       });
     }
-
 
     if (result.unavailable?.length > 0) {
       return res.status(207).json({
@@ -64,18 +65,16 @@ async function createScheduleRequestController(req, res) {
 
     res.status(201).json({
       success: true,
-      message: "Đã gửi yêu cầu tạo lịch cho manageclinic.",
+      message: "Đã gửi yêu cầu tạo lịch cho Clinic Manager.",
       requestId: result.requestId,
       details: result.results,
     });
   } catch (err) {
     console.error(" Lỗi tạo lịch:", err);
-    res
-      .status(500)
-      .json({
-        message: "Lỗi server khi tạo lịch làm việc.",
-        error: err.message,
-      });
+    res.status(500).json({
+      message: "Không còn phòng trống nào để tạo lịch.",
+      error: err.message,
+    });
   }
 }
 
@@ -106,12 +105,10 @@ async function checkAvailabilityController(req, res) {
     res.status(200).json({ message: "Kết quả kiểm tra phòng trống", result });
   } catch (err) {
     console.error(" Lỗi kiểm tra availability:", err);
-    res
-      .status(500)
-      .json({
-        message: "Lỗi server khi kiểm tra phòng trống.",
-        error: err.message,
-      });
+    res.status(500).json({
+      message: "Lỗi server khi kiểm tra phòng trống.",
+      error: err.message,
+    });
   }
 }
 
@@ -145,12 +142,10 @@ async function getScheduleRequestDetailsController(req, res) {
     res.status(200).json({ success: true, details });
   } catch (err) {
     console.error(" Lỗi lấy chi tiết request:", err);
-    res
-      .status(500)
-      .json({
-        message: "Lỗi server khi lấy chi tiết request.",
-        error: err.message,
-      });
+    res.status(500).json({
+      message: "Lỗi server khi lấy chi tiết request.",
+      error: err.message,
+    });
   }
 }
 

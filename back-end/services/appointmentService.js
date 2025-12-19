@@ -27,10 +27,14 @@ const appointmentService = {
     io
   ) {
     const pool = await getPool();
-    const userResult = await pool
-      .request()
-      .input("userId", sql.Int, patientId)
-      .query(`SELECT isActive FROM Users WHERE userId = @userId`);
+
+    /* ================== 1. CHECK USER ================== */
+    const userResult = await pool.request().input("userId", sql.Int, patientId)
+      .query(`
+      SELECT isActive
+      FROM Users
+      WHERE userId = @userId
+    `);
 
     if (!userResult.recordset.length) {
       throw new Error("Người dùng không tồn tại");
@@ -41,31 +45,51 @@ const appointmentService = {
         "Tài khoản của bạn đã bị khóa do hủy lịch quá nhiều lần. Vui lòng liên hệ lễ tân."
       );
     }
-    console.log("patientId:", patientId);
-    console.log("isActive:", userResult.recordset[0].isActive);
 
-    // Transaction
+    /* ============ 2. CHỐNG SPAM ĐẶT LỊCH ============ */
+    const scheduledResult = await pool
+      .request()
+      .input("patientId", sql.Int, patientId).query(`
+      SELECT COUNT(*) AS total
+      FROM Appointments
+      WHERE patientId = @patientId
+        AND status = 'Scheduled'
+    `);
+
+    const scheduledCount = scheduledResult.recordset[0].total;
+
+    if (scheduledCount >= 2) {
+      throw new Error(
+        "Bạn chỉ được có tối đa 2 lịch đang chờ khám. Vui lòng hoàn thành hoặc hủy bớt lịch."
+      );
+    }
+
+    /* ================== 3. TRANSACTION ================== */
     const transaction = new sql.Transaction(pool);
     await transaction.begin();
+
     let appointment;
     let slot;
+
     try {
+      // Check slot
       slot = await checkSlot(slotId, transaction);
       if (!slot) throw new Error("Slot không tồn tại");
       if (slot.isBooked) throw new Error("Slot đã được đặt");
-      const hasCompleted = await hasCompletedAppointment(
-        patientId,
-        transaction
-      );
 
-      // if (!hasCompleted && appointmentType === "tai kham") {
-      //   throw new Error("Bệnh nhân chưa từng khám trước đây, không thể đặt tái khám.");
-      // }
-
+      // Mark slot booked
       await markAsBooked(slotId, transaction);
 
+      // Create appointment
       appointment = await create(
-        { patientId, doctorId, slotId, reason, workDate, appointmentType },
+        {
+          patientId,
+          doctorId,
+          slotId,
+          reason,
+          workDate,
+          appointmentType,
+        },
         transaction
       );
 
@@ -74,11 +98,13 @@ const appointmentService = {
       await transaction.rollback();
       throw err;
     }
-    // Realtime slot booked
+
+    /* ================== 4. REALTIME ================== */
     io.emit("slotBooked", { slotId });
+
+    /* ================== 5. NOTIFICATION ================== */
     slot = await checkSlot(slotId);
-    // Chuẩn bị danh sách notification
-    const notifyUsers = [];
+
     const timeStr =
       slot.startTime instanceof Date
         ? slot.startTime.toISOString().substring(11, 16)
@@ -86,27 +112,26 @@ const appointmentService = {
 
     const workDateStr = slot.workDate
       ? slot.workDate.toISOString().slice(0, 10)
-      : null;
-    // Bệnh nhân
-    notifyUsers.push({
-      receiverId: patientId,
-      senderId: null,
-      title: "Đặt lịch thành công",
-      message: `Bạn đã đặt lịch vào ${timeStr} ${workDateStr}`,
-      type: "appointment",
-    });
-    const patient = await getByIdPatient(patientId);
-    // Bác sĩ
-    notifyUsers.push({
-      receiverId: doctorId,
-      senderId: patientId,
-      title: "Có lịch hẹn mới",
-      message: `Bệnh nhân ${patient.fullName} vừa đặt lịch vào ${timeStr} ${workDateStr}`,
-      type: "appointment",
-    });
+      : "";
 
-    // Gửi tất cả notifications + realtime bằng helper
-    await sendNotificationToMany(notifyUsers);
+    const patient = await getByIdPatient(patientId);
+
+    await sendNotificationToMany([
+      {
+        receiverId: patientId,
+        senderId: null,
+        title: "Đặt lịch thành công",
+        message: `Bạn đã đặt lịch vào ${timeStr} ${workDateStr}`,
+        type: "appointment",
+      },
+      {
+        receiverId: doctorId,
+        senderId: patientId,
+        title: "Có lịch hẹn mới",
+        message: `Bệnh nhân ${patient.fullName} vừa đặt lịch vào ${timeStr} ${workDateStr}`,
+        type: "appointment",
+      },
+    ]);
 
     return appointment;
   },

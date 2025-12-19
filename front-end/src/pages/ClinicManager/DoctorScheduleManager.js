@@ -340,7 +340,10 @@ export default function ScheduleRequests() {
                             .toString()
                             .padStart(2, "0")}
                         </td>
-                        <td>{s.roomId ? `Phòng ${s.roomId}` : "Chưa có"}</td>
+                        {/* <td>{s.roomId ? `Phòng ${s.roomId}` : "Chưa có"}</td> */}
+                        <td>
+                          {s.roomName ? `Phòng ${s.roomName}` : "Chưa có"}
+                        </td>
                         <td>
                           <span
                             className={`badge ${

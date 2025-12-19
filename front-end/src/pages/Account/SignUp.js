@@ -7,6 +7,8 @@ import { FaEye, FaEyeSlash } from "react-icons/fa";
 import { toast } from "react-toastify";
 
 export default function SignUp() {
+  const today = new Date().toISOString().split("T")[0];
+
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     fullName: "",
@@ -36,6 +38,14 @@ export default function SignUp() {
     }
     if (!formData.gender) {
       toast.warning("Vui lòng chọn giới tính!");
+      return;
+    }
+    const selectedDob = new Date(formData.dob);
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+
+    if (selectedDob > now) {
+      toast.warning("Ngày sinh không được lớn hơn ngày hiện tại!");
       return;
     }
     if (!formData.address.trim()) {
@@ -172,12 +182,12 @@ export default function SignUp() {
                   <div className="mb-3">
                     <label className="form-label">Địa chỉ</label>
                     <input
-                      type="text"
+                      type="date"
                       className="form-control"
-                      name="address"
-                      value={formData.address}
+                      name="dob"
+                      value={formData.dob}
                       onChange={handleChange}
-                      placeholder="Số nhà, đường, quận/huyện, thành phố"
+                      max={today} // 👈 CHẶN ngày > hôm nay
                       required
                       style={{ borderRadius: "10px" }}
                     />
