@@ -195,6 +195,18 @@ const Promotion = () => {
       return;
     }
 
+    // Kiểm tra trùng mã khuyến mãi
+    const codeExists = promotions.some(
+      (promotion) =>
+        promotion.code.toLowerCase() === formData.code.toLowerCase() &&
+        (!editingPromotion || promotion.promotionId !== editingPromotion.promotionId)
+    );
+
+    if (codeExists) {
+      setError("Mã khuyến mãi đã tồn tại. Vui lòng chọn mã khác.");
+      return;
+    }
+
     try {
       if (editingPromotion) {
         await updatePromotion(editingPromotion.promotionId, formData);
@@ -235,7 +247,6 @@ const Promotion = () => {
         </Col>
       </Row>
 
-      {error && <Alert variant="danger">{error}</Alert>}
       {success && <Alert variant="success">{success}</Alert>}
 
       <Row className="mb-3">
@@ -384,6 +395,7 @@ const Promotion = () => {
 
         <Form onSubmit={handleSubmit}>
           <Modal.Body>
+            {error && <Alert variant="danger">{error}</Alert>}
             {/* Form */}
             <Row>
               <Col md={6}>
