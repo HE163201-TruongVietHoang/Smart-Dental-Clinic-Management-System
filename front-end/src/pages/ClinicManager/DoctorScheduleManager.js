@@ -327,7 +327,7 @@ export default function ScheduleRequests() {
                             .toString()
                             .padStart(2, "0")}
                           :
-                          {new Date(s.startTime)
+                          {new Date(s.endTime)
                             .getUTCMinutes()
                             .toString()
                             .padStart(2, "0")}
