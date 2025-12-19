@@ -1,13 +1,13 @@
 const { getPool } = require("../config/db");
 const sql = require("mssql");
-const { normalizeTime} = require("../utils/timeUtils");
+const { normalizeTime } = require("../utils/timeUtils");
 
 async function createScheduleRequest(doctorId, note) {
   const pool = await getPool();
-  const result = await pool.request()
+  const result = await pool
+    .request()
     .input("doctorId", sql.Int, doctorId)
-    .input("note", sql.NVarChar, note)
-    .query(`
+    .input("note", sql.NVarChar, note).query(`
       INSERT INTO ScheduleRequests (doctorId, note)
       OUTPUT INSERTED.requestId
       VALUES (@doctorId, @note)
@@ -16,7 +16,14 @@ async function createScheduleRequest(doctorId, note) {
   return result.recordset[0].requestId;
 }
 
-async function createSchedule({ requestId, doctorId, roomId, workDate, startTime, endTime }) {
+async function createSchedule({
+  requestId,
+  doctorId,
+  roomId,
+  workDate,
+  startTime,
+  endTime,
+}) {
   const pool = await getPool();
 
   let sStart = normalizeTime(startTime);
@@ -39,49 +46,45 @@ async function createSchedule({ requestId, doctorId, roomId, workDate, startTime
     nextDate.setDate(currentDate.getDate() + 1);
 
     // Hôm nay: start -> 23:59:59
-    await pool.request()
+    await pool
+      .request()
       .input("requestId", sql.Int, requestId)
       .input("doctorId", sql.Int, doctorId)
       .input("roomId", sql.Int, roomId)
       .input("workDate", sql.Date, workDate)
       .input("startTime", sql.NVarChar, sStart)
-      .input("endTime", sql.NVarChar, "23:59:59")
-      .query(`
+      .input("endTime", sql.NVarChar, "23:59:59").query(`
         INSERT INTO Schedules (requestId, doctorId, roomId, workDate, startTime, endTime, status)
         VALUES (@requestId,@doctorId,@roomId,@workDate,CAST(@startTime AS TIME),CAST(@endTime AS TIME),'Pending')
       `);
 
     // Ngày mai: 00:00:00 -> sEnd
-    await pool.request()
+    await pool
+      .request()
       .input("requestId", sql.Int, requestId)
       .input("doctorId", sql.Int, doctorId)
       .input("roomId", sql.Int, roomId)
       .input("workDate", sql.Date, nextDate)
       .input("startTime", sql.NVarChar, "00:00:00")
-      .input("endTime", sql.NVarChar, sEnd)
-      .query(`
+      .input("endTime", sql.NVarChar, sEnd).query(`
         INSERT INTO Schedules (requestId, doctorId, roomId, workDate, startTime, endTime, status)
         VALUES (@requestId,@doctorId,@roomId,@workDate,CAST(@startTime AS TIME),CAST(@endTime AS TIME),'Pending')
       `);
-
   } else {
     // Ca bình thường trong ngày
-    await pool.request()
+    await pool
+      .request()
       .input("requestId", sql.Int, requestId)
       .input("doctorId", sql.Int, doctorId)
       .input("roomId", sql.Int, roomId)
       .input("workDate", sql.Date, workDate)
       .input("startTime", sql.NVarChar, sStart)
-      .input("endTime", sql.NVarChar, sEnd)
-      .query(`
+      .input("endTime", sql.NVarChar, sEnd).query(`
         INSERT INTO Schedules (requestId, doctorId, roomId, workDate, startTime, endTime, status)
         VALUES (@requestId,@doctorId,@roomId,@workDate,CAST(@startTime AS TIME),CAST(@endTime AS TIME),'Pending')
       `);
   }
 }
-
-
-
 
 async function hasOverlappingSchedule(doctorId, workDate, startTime, endTime) {
   const pool = await getPool();
@@ -93,12 +96,12 @@ async function hasOverlappingSchedule(doctorId, workDate, startTime, endTime) {
 
   const isOvernight = sEnd < sStart;
 
-  const result = await pool.request()
+  const result = await pool
+    .request()
     .input("doctorId", sql.Int, doctorId)
     .input("workDate", sql.Date, workDate)
     .input("startTime", sql.NVarChar, sStart)
-    .input("endTime", sql.NVarChar, sEnd)
-    .query(`
+    .input("endTime", sql.NVarChar, sEnd).query(`
       SELECT TOP 1 *
       FROM Schedules s
       JOIN Rooms r ON s.roomId = r.roomId
@@ -135,7 +138,6 @@ async function hasOverlappingSchedule(doctorId, workDate, startTime, endTime) {
   return result.recordset[0] || null;
 }
 
-
 async function getScheduleRequests(page = 1, limit = 10) {
   const pool = await getPool();
   const offset = (page - 1) * limit;
@@ -164,39 +166,104 @@ async function getScheduleRequests(page = 1, limit = 10) {
   return { requests, total };
 }
 
-
 async function getScheduleRequestById(requestId) {
   const pool = await getPool();
 
-  const reqResult = await pool
-    .request()
-    .input("requestId", sql.Int, requestId)
+  // 1) Request info
+  const reqResult = await pool.request().input("requestId", sql.Int, requestId)
     .query(`
-      SELECT sr.requestId, sr.doctorId, u.fullName AS doctorName, sr.note, sr.createdAt, sr.status
+      SELECT
+        sr.requestId,
+        sr.doctorId,
+        u.fullName AS doctorName,
+        sr.note,
+        sr.createdAt,
+        sr.status
       FROM ScheduleRequests sr
       LEFT JOIN Users u ON sr.doctorId = u.userId
       WHERE sr.requestId = @requestId
     `);
 
-  const schedulesResult = await pool
-    .request()
-    .input("requestId", sql.Int, requestId)
+  const request = reqResult.recordset[0] || null;
+  if (!request) return { request: null, schedules: [] };
+
+  // 2) Schedules + Nurses (JOIN NurseShifts)
+  const rowsResult = await pool.request().input("requestId", sql.Int, requestId)
     .query(`
-      SELECT scheduleId, doctorId, roomId, workDate, startTime, endTime, status
-      FROM Schedules
-      WHERE requestId = @requestId
+      SELECT
+        s.scheduleId,
+        s.doctorId,
+        s.roomId,
+        s.workDate,
+        s.startTime,
+        s.endTime,
+        s.status,
+
+        r.roomName,
+
+        ns.shiftId,
+        ns.nurseId,
+        un.fullName AS nurseName,
+        ns.status AS nurseShiftStatus
+      FROM Schedules s
+      LEFT JOIN Rooms r ON s.roomId = r.roomId
+      LEFT JOIN NurseShifts ns
+        ON ns.scheduleId = s.scheduleId
+       AND (ns.status IS NULL OR ns.status = 'Assigned')
+      LEFT JOIN Users un ON ns.nurseId = un.userId
+      WHERE s.requestId = @requestId
+      ORDER BY s.workDate ASC, s.startTime ASC, ns.shiftId ASC
     `);
 
-  return { request: reqResult.recordset[0], schedules: schedulesResult.recordset };
+  const rows = rowsResult.recordset || [];
+
+  // 3) Group nurses by scheduleId
+  const map = new Map();
+
+  for (const r of rows) {
+    if (!map.has(r.scheduleId)) {
+      map.set(r.scheduleId, {
+        scheduleId: r.scheduleId,
+        doctorId: r.doctorId,
+        roomId: r.roomId,
+        roomName: r.roomName || null,
+        workDate: r.workDate,
+        startTime: r.startTime,
+        endTime: r.endTime,
+        status: r.status,
+        nurses: [],
+      });
+    }
+
+    // Nếu có y tá được assign
+    if (r.nurseId) {
+      const item = map.get(r.scheduleId);
+
+      // tránh trùng (phòng trường hợp join ra trùng)
+      const existed = item.nurses.some((n) => n.nurseId === r.nurseId);
+      if (!existed) {
+        item.nurses.push({
+          shiftId: r.shiftId,
+          nurseId: r.nurseId,
+          nurseName: r.nurseName,
+          status: r.nurseShiftStatus || "Assigned",
+        });
+      }
+    }
+  }
+
+  return {
+    request,
+    schedules: Array.from(map.values()),
+  };
 }
 
 async function approveScheduleRequest(requestId, adminId) {
   const pool = await getPool();
   await pool
     .request()
-    .input('requestId', sql.Int, requestId)
-    .input('adminId', sql.Int, adminId)
-    .query(`
+    .input("requestId", sql.Int, requestId)
+    .input("adminId", sql.Int, adminId).query(`
       UPDATE ScheduleRequests SET status = 'Approved' WHERE requestId = @requestId;
       UPDATE Schedules SET status = 'Approved' WHERE requestId = @requestId;
     `);
@@ -206,10 +273,9 @@ async function rejectScheduleRequest(requestId, adminId, reason = null) {
   const pool = await getPool();
   await pool
     .request()
-    .input('requestId', sql.Int, requestId)
-    .input('adminId', sql.Int, adminId)
-    .input('reason', sql.NVarChar, reason)
-    .query(`
+    .input("requestId", sql.Int, requestId)
+    .input("adminId", sql.Int, adminId)
+    .input("reason", sql.NVarChar, reason).query(`
       UPDATE ScheduleRequests SET status = 'Rejected' WHERE requestId = @requestId;
       UPDATE Schedules SET status = 'Rejected' WHERE requestId = @requestId;
     `);
@@ -217,8 +283,7 @@ async function rejectScheduleRequest(requestId, adminId, reason = null) {
 
 async function getDoctorSchedules(doctorId) {
   const pool = await getPool();
-  const result = await pool.request()
-    .input("doctorId", sql.Int, doctorId)
+  const result = await pool.request().input("doctorId", sql.Int, doctorId)
     .query(`
       SELECT 
         s.scheduleId,
@@ -273,8 +338,7 @@ async function getScheduleDetailByDoctor(scheduleId, doctorId) {
 
   const slotsResult = await pool
     .request()
-    .input("scheduleId", sql.Int, scheduleId)
-    .query(`
+    .input("scheduleId", sql.Int, scheduleId).query(`
       SELECT slotId, startTime, endTime, isBooked
       FROM Slots
       WHERE scheduleId = @scheduleId
@@ -291,7 +355,7 @@ async function getScheduleDetailByDoctor(scheduleId, doctorId) {
       roomId: schedule.roomId,
       roomName: schedule.roomName,
     },
-    slots: slotsResult.recordset.map(s => ({
+    slots: slotsResult.recordset.map((s) => ({
       slotId: s.slotId,
       startTime: normalizeTime(s.startTime),
       endTime: normalizeTime(s.endTime),
@@ -301,7 +365,8 @@ async function getScheduleDetailByDoctor(scheduleId, doctorId) {
 }
 async function deleteScheduleByRequestId(requestId) {
   const pool = await getPool();
-  await pool.request()
+  await pool
+    .request()
     .input("requestId", sql.Int, requestId)
     .query(`DELETE FROM Schedules WHERE requestId = @requestId`);
 }
@@ -309,7 +374,8 @@ async function deleteScheduleByRequestId(requestId) {
 // Xóa request
 async function deleteScheduleRequest(requestId) {
   const pool = await getPool();
-  await pool.request()
+  await pool
+    .request()
     .input("requestId", sql.Int, requestId)
     .query(`DELETE FROM ScheduleRequests WHERE requestId = @requestId`);
 }
@@ -324,5 +390,5 @@ module.exports = {
   getDoctorSchedules,
   getScheduleDetailByDoctor,
   deleteScheduleByRequestId,
-  deleteScheduleRequest
+  deleteScheduleRequest,
 };

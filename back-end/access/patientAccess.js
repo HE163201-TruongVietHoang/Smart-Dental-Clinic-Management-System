@@ -104,7 +104,7 @@ CONVERT(VARCHAR(5), sl.endTime, 108) AS endTime,
 
       WHERE 
     a.patientId = @patientId
-    AND a.status IN ('Completed', 'Cancelled')
+    AND a.status IN ('Completed')
 
       ORDER BY a.appointmentId DESC, d.diagnosisId DESC
     `);
