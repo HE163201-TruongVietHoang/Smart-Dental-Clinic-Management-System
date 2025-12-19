@@ -121,6 +121,11 @@ exports.importMaterial = async (req, res) => {
         .json({ error: "materialId, userId và quantity là bắt buộc." });
     }
 
+    if (quantity <= 0) {
+      return res
+        .status(400)
+        .json({ error: "Số lượng nhập kho phải lớn hơn 0." });
+    }
     const result = await materialService.addTransaction({
       materialId,
       userId,
@@ -139,14 +144,21 @@ exports.importMaterial = async (req, res) => {
 exports.addNewMaterial = async (req, res) => {
   try {
     const { materialName, unit, unitPrice } = req.body;
+
     if (!materialName || !unit || unitPrice == null) {
       return res.status(400).json({ error: "Thiếu thông tin vật tư." });
     }
+
+    if (unitPrice < 0) {
+      return res.status(400).json({ error: "Giá vật tư không được là số âm." });
+    }
+
     const result = await materialService.addNewMaterial({
       materialName,
       unit,
       unitPrice,
     });
+
     res.json(result);
   } catch (err) {
     console.error("addNewMaterial error:", err);
@@ -362,5 +374,77 @@ exports.getMaterialUsageReport = async (req, res) => {
   } catch (err) {
     console.error("getMaterialUsageReport error:", err);
     res.status(500).json({ error: err.message });
+  }
+};
+
+exports.getMaterialSummaryReport = async (req, res) => {
+  try {
+    const month = req.query.month || null;
+    const rows = await materialService.getMaterialSummaryReport(month);
+
+    const report = {
+      used: {
+        week: { quantity: 0, amount: 0 },
+        month: { quantity: 0, amount: 0 },
+      },
+      import: {
+        week: { quantity: 0, amount: 0 },
+        month: { quantity: 0, amount: 0 },
+      },
+    };
+
+    rows.forEach((r) => {
+      const qty = r.totalQuantity || 0;
+      const amt = r.totalAmount || 0;
+
+      if (r.category === "USED") {
+        report.used.month = { quantity: qty, amount: amt };
+      }
+      if (r.category === "IMPORT") {
+        report.import.month = { quantity: qty, amount: amt };
+      }
+    });
+
+    res.json(report);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Không thể lấy báo cáo vật tư" });
+  }
+};
+
+exports.getMaterialDetailReport = async (req, res) => {
+  try {
+    const month = req.query.month?.trim() || null;
+    const rows = await materialService.getMaterialDetailReport(month);
+
+    const report = {
+      used: { week: [], month: [] },
+      import: { week: [], month: [] },
+    };
+
+    rows.forEach((r) => {
+      if (!r.period) return;
+
+      const item = {
+        materialId: r.materialId,
+        materialName: r.materialName,
+        unit: r.unit,
+        quantity: r.totalQuantity || 0,
+        amount: r.totalAmount || 0,
+      };
+
+      const period = r.period.toLowerCase(); // week | month
+
+      if (r.transactionType === "IMPORT") {
+        report.import[period]?.push(item);
+      } else {
+        report.used[period]?.push(item);
+      }
+    });
+
+    res.json(report);
+  } catch (err) {
+    console.error("getMaterialDetailReport error:", err);
+    res.status(500).json({ error: "Không thể lấy báo cáo chi tiết vật tư" });
   }
 };

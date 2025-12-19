@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "react-toastify";
 
+const money = (v) => Number(v || 0).toLocaleString("vi-VN");
+const fmtQty = (v) => Number(v || 0);
 /* ==============================
    SUMMARY CARD COMPONENT
 ============================== */
@@ -28,6 +30,7 @@ function SummaryCard({ label, value, color }) {
    MAIN COMPONENT – CLINIC MANAGER MATERIAL PAGE
 ====================================================== */
 export default function ClinicManagerMaterialPage() {
+  const [summaryReport, setSummaryReport] = useState(null);
   const [materials, setMaterials] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [usageReport, setUsageReport] = useState([]);
@@ -37,11 +40,15 @@ export default function ClinicManagerMaterialPage() {
 
   const token = localStorage.getItem("token");
   const userId = JSON.parse(localStorage.getItem("user") || "{}").userId;
+  const [selectedMonth, setSelectedMonth] = useState(
+    new Date().toISOString().slice(0, 7) // YYYY-MM
+  );
 
   // Định mức dịch vụ
   const [services, setServices] = useState([]);
   const [serviceMaterials, setServiceMaterials] = useState([]);
   const [selectedService, setSelectedService] = useState(null);
+  const [detailReport, setDetailReport] = useState(null);
   const [editQty, setEditQty] = useState({});
   const [showAddModal, setShowAddModal] = useState(false);
   const [newMaterialId, setNewMaterialId] = useState("");
@@ -138,7 +145,14 @@ export default function ClinicManagerMaterialPage() {
   const [note, setNote] = useState("");
 
   const handleImport = async () => {
-    if (!selId || !qty) return toast.warning("Chọn vật tư + số lượng!");
+    if (!selId || !qty) {
+      return toast.warning("Chọn vật tư và số lượng!");
+    }
+
+    if (qty <= 0) {
+      return toast.error("Số lượng nhập phải lớn hơn 0.");
+    }
+
     try {
       await fetchAPI("/import", "POST", {
         materialId: +selId,
@@ -146,6 +160,7 @@ export default function ClinicManagerMaterialPage() {
         quantity: +qty,
         note: note || "Nhập kho",
       });
+
       toast.success("NHẬP KHO THÀNH CÔNG!");
       setSelId("");
       setQty(1);
@@ -153,7 +168,7 @@ export default function ClinicManagerMaterialPage() {
       loadMaterials();
       loadTransactions();
     } catch (err) {
-      toast.error("Lỗi: " + err.message);
+      toast.error(err.message);
     }
   };
 
@@ -219,6 +234,36 @@ export default function ClinicManagerMaterialPage() {
     }
   };
 
+  const loadSummaryReport = async () => {
+    try {
+      const url = selectedMonth
+        ? `/report/summary?month=${selectedMonth}`
+        : `/report/summary`;
+      setSummaryReport(await fetchAPI(url));
+    } catch {
+      toast.error("Không tải được báo cáo vật tư!");
+      setSummaryReport(null);
+    }
+  };
+
+  const loadDetailReport = async () => {
+    try {
+      const url = selectedMonth
+        ? `/report/detail?month=${selectedMonth}`
+        : `/report/detail`;
+      setDetailReport(await fetchAPI(url));
+    } catch {
+      toast.error("Không tải được báo cáo chi tiết!");
+      setDetailReport(null);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "report") {
+      loadSummaryReport();
+      loadDetailReport();
+    }
+  }, [activeTab, selectedMonth]);
   const handleRemoveFromService = async (id) => {
     if (!confirm("Xóa vật tư khỏi dịch vụ?")) return;
     try {
@@ -243,8 +288,45 @@ export default function ClinicManagerMaterialPage() {
     return acc;
   }, {});
 
-  const formatDate = (d) => (d ? new Date(d).toLocaleString("vi-VN") : "—");
+  const formatDate = (d) => {
+    if (!d) return "—";
 
+    const date = new Date(d);
+    // Trừ 7 tiếng (UTC → GMT+7)
+    date.setHours(date.getHours() - 7);
+
+    return date.toLocaleString("vi-VN");
+  };
+
+  const MaterialDetailTable = ({ title, data, color }) => (
+    <div style={{ marginBottom: 40 }}>
+      <h5 style={{ color }}>{title}</h5>
+      {!data || data.length === 0 ? (
+        <p style={{ fontStyle: "italic" }}>Không có dữ liệu</p>
+      ) : (
+        <table className="table table-bordered">
+          <thead>
+            <tr>
+              <th>Vật tư</th>
+              <th>Đơn vị</th>
+              <th>Số lượng</th>
+              <th>Thành tiền</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.map((m, i) => (
+              <tr key={i}>
+                <td>{m.materialName}</td>
+                <td>{m.unit}</td>
+                <td>{Number(m.quantity).toLocaleString("vi-VN")}</td>
+                <td>{Number(m.amount || 0).toLocaleString("vi-VN")} ₫</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
   /* ==============================
      MAIN RENDER
   ============================== */
@@ -310,112 +392,107 @@ export default function ClinicManagerMaterialPage() {
               TAB BÁO CÁO – PREMIUM UI
           ============================== */}
           {activeTab === "report" && (
-            <div>
-              <h4 style={{ color: "#9b59b6", textAlign: "center" }}>
-                BÁO CÁO SỬ DỤNG VẬT TƯ
-              </h4>
+            <div style={{ padding: 40 }}>
+              <h2 style={{ textAlign: "center", color: "#2ECCB6" }}>
+                📊 BÁO CÁO QUẢN LÝ VẬT TƯ
+              </h2>
 
-              {/* --- SUMMARY SECTION --- */}
+              {/* FILTER MONTH */}
               <div
                 style={{
                   display: "flex",
-                  gap: "20px",
-                  flexWrap: "wrap",
-                  marginBottom: "30px",
                   justifyContent: "center",
+                  alignItems: "center",
+                  gap: "12px",
+                  margin: "20px 0",
+                  flexWrap: "wrap",
                 }}
               >
-                <SummaryCard
-                  label="Tổng mục vượt chuẩn"
-                  value={usageReport.filter((r) => r.Difference > 0).length}
-                  color="#e74c3c"
-                />
-                <SummaryCard
-                  label="Đúng chuẩn"
-                  value={usageReport.filter((r) => r.Difference === 0).length}
-                  color="#3498db"
-                />
-                <SummaryCard
-                  label="Tiết kiệm vật tư"
-                  value={usageReport.filter((r) => r.Difference < 0).length}
-                  color="#27ae60"
-                />
-              </div>
-
-              {/* --- GROUP BY SERVICE --- */}
-              {Object.entries(groupedReport).map(([serviceName, items]) => (
-                <div
-                  key={serviceName}
+                {/* MONTH PICKER */}
+                <input
+                  type="month"
+                  value={selectedMonth || ""}
+                  onChange={(e) => setSelectedMonth(e.target.value || null)}
                   style={{
-                    background: "#f7f9f9",
-                    padding: "16px",
-                    borderRadius: "12px",
-                    marginBottom: "25px",
+                    padding: "10px 14px",
+                    borderRadius: "10px",
+                    border: "2px solid #2ECCB6",
+                    fontSize: "14px",
+                    fontWeight: "500",
+                    cursor: "pointer",
+                  }}
+                />
+
+                {/* RESET BUTTON */}
+                <button
+                  onClick={() => setSelectedMonth(null)}
+                  style={{
+                    marginLeft: 10,
+                    padding: "8px 14px",
+                    borderRadius: "8px",
+                    border: "1px solid #2ECCB6",
+                    background: "#2ECCB6",
+                    color: "#fff",
+                    fontSize: "14px",
+                    fontWeight: "600",
+                    cursor: "pointer",
                   }}
                 >
-                  <h5 style={{ color: "#8e44ad", marginBottom: "10px" }}>
-                    {serviceName}
-                  </h5>
+                  Xem tất cả
+                </button>
+              </div>
 
-                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                    <thead>
-                      <tr style={{ background: "#ecf0f1" }}>
-                        <th style={{ padding: "10px" }}>Vật tư</th>
-                        <th style={{ padding: "10px", textAlign: "center" }}>
-                          Chuẩn
-                        </th>
-                        <th style={{ padding: "10px", textAlign: "center" }}>
-                          Thực tế
-                        </th>
-                        <th style={{ padding: "10px", textAlign: "center" }}>
-                          Chênh lệch
-                        </th>
-                      </tr>
-                    </thead>
+              {!summaryReport ? (
+                <p style={{ textAlign: "center" }}>Đang tải...</p>
+              ) : (
+                <>
+                  {/* ===== ĐÃ SỬ DỤNG (THÁNG) ===== */}
+                  <h4 style={{ color: "#e74c3c" }}> Đã sử dụng </h4>
+                  <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
+                    <SummaryCard
+                      label="Tổng số lượng"
+                      value={fmtQty(summaryReport.used.month.quantity)}
+                      color="#e74c3c"
+                    />
+                    <SummaryCard
+                      label="Tổng chi phí"
+                      value={`${money(summaryReport.used.month.amount)} ₫`}
+                      color="#c0392b"
+                    />
+                  </div>
 
-                    <tbody>
-                      {items.map((r, i) => (
-                        <tr key={i}>
-                          <td style={{ padding: "10px" }}>{r.materialName}</td>
-                          <td
-                            style={{
-                              padding: "10px",
-                              textAlign: "center",
-                            }}
-                          >
-                            {r.Standard}
-                          </td>
-                          <td
-                            style={{
-                              padding: "10px",
-                              textAlign: "center",
-                            }}
-                          >
-                            {r.Actual}
-                          </td>
-                          <td
-                            style={{
-                              padding: "10px",
-                              textAlign: "center",
-                              fontWeight: "bold",
-                              color:
-                                r.Difference > 0
-                                  ? "#e74c3c"
-                                  : r.Difference < 0
-                                  ? "#27ae60"
-                                  : "#7f8c8d",
-                            }}
-                          >
-                            {r.Difference > 0 && "🔴 +"}
-                            {r.Difference < 0 && "🟢 "}
-                            {r.Difference}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ))}
+                  {/* ===== NHẬP KHO (THÁNG) ===== */}
+                  <h4 style={{ color: "#27ae60", marginTop: 30 }}>Nhập kho</h4>
+                  <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
+                    <SummaryCard
+                      label="Tổng số lượng"
+                      value={fmtQty(summaryReport.import.month.quantity)}
+                      color="#27ae60"
+                    />
+                    <SummaryCard
+                      label="Tổng giá trị"
+                      value={`${money(summaryReport.import.month.amount)} ₫`}
+                      color="#1e8449"
+                    />
+                  </div>
+                </>
+              )}
+
+              {/* ===== CHI TIẾT THEO THÁNG ===== */}
+              {detailReport && (
+                <>
+                  <MaterialDetailTable
+                    title="Chi tiết sử dụng "
+                    data={detailReport.used.month}
+                    color="#e74c3c"
+                  />
+                  <MaterialDetailTable
+                    title="Chi tiết nhập kho "
+                    data={detailReport.import.month}
+                    color="#27ae60"
+                  />
+                </>
+              )}
             </div>
           )}
 

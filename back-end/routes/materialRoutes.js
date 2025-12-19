@@ -107,4 +107,19 @@ router.get(
   authorizeRoles("Nurse"),
   controller.getMaterialsByAppointment
 );
+
+router.get(
+  "/report/summary",
+  authMiddleware,
+  authorizeRoles("ClinicManager"),
+  controller.getMaterialSummaryReport
+);
+
+router.get(
+  "/report/detail",
+  authMiddleware,
+  authorizeRoles("ClinicManager"),
+  controller.getMaterialDetailReport
+);
+
 module.exports = router;
