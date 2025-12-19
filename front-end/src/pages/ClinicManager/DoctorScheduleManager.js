@@ -266,6 +266,14 @@ export default function ScheduleRequests() {
                 <b>Bác sĩ:</b> {selectedRequest.request.doctorName}
               </p>
               <p>
+                <strong>Y tá:</strong>{" "}
+                {selectedRequest.schedules
+                  ?.flatMap((s) => s.nurses || [])
+                  .map((n) => n.nurseName)
+                  .filter((v, i, a) => a.indexOf(v) === i)
+                  .join(", ") || "Chưa phân công"}
+              </p>
+              <p>
                 <b>Ngày tạo:</b>{" "}
                 {new Date(selectedRequest.request.createdAt).toLocaleString(
                   "vi-VN",

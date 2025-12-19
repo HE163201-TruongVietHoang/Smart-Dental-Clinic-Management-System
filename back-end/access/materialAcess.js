@@ -112,6 +112,9 @@ module.exports = {
       const currentStock = parseFloat(stockResult.recordset[0].stockQuantity);
       const qty = parseFloat(quantity);
 
+      if (isNaN(qty) || qty <= 0) {
+        throw new Error("Số lượng phải là số dương (> 0).");
+      }
       // 2) Validate tồn kho
       if (transactionType === "USE" || transactionType === "DAMAGED") {
         if (currentStock < qty) {
@@ -500,3 +503,126 @@ async function notifyLowStock(materialId, newStock, transaction) {
 
   await sendNotificationToMany(notifications);
 }
+
+async function getMaterialSummaryReport(month) {
+  const pool = await getPool();
+
+  const query = `
+DECLARE @month NVARCHAR(7) = @monthParam; -- 'YYYY-MM' hoặc NULL
+DECLARE @startDate DATETIME = NULL;
+DECLARE @endDate DATETIME = NULL;
+
+IF @month IS NOT NULL
+BEGIN
+    SET @startDate = CAST(DATEFROMPARTS(LEFT(@month,4), RIGHT(@month,2), 1) AS DATETIME);
+    SET @endDate = DATEADD(MONTH, 1, @startDate);
+END;
+
+-- USED
+SELECT
+    'USED' AS category,
+    SUM(mt.quantity) AS totalQuantity,
+    SUM(mt.quantity * m.unitPrice) AS totalAmount
+FROM MaterialTransactions mt
+JOIN Materials m ON mt.materialId = m.materialId
+WHERE mt.transactionType IN ('USE','DAMAGED')
+  AND (
+        @startDate IS NULL
+        OR (mt.transactionDate >= @startDate AND mt.transactionDate < @endDate)
+      )
+
+UNION ALL
+
+-- IMPORT
+SELECT
+    'IMPORT',
+    SUM(mt.quantity),
+    SUM(mt.quantity * m.unitPrice)
+FROM MaterialTransactions mt
+JOIN Materials m ON mt.materialId = m.materialId
+WHERE mt.transactionType = 'IMPORT'
+  AND (
+        @startDate IS NULL
+        OR (mt.transactionDate >= @startDate AND mt.transactionDate < @endDate)
+      );
+
+`;
+
+  const result = await pool
+    .request()
+    .input("monthParam", sql.NVarChar(7), month || null)
+    .query(query);
+
+  return result.recordset;
+}
+
+async function getMaterialDetailReport(month) {
+  const pool = await getPool();
+
+  const query = `
+DECLARE @month NVARCHAR(7) = @monthParam;
+
+DECLARE @startMonth DATETIME = NULL;
+DECLARE @endMonth DATETIME = NULL;
+
+DECLARE @startWeek DATETIME = DATEADD(DAY, -6, CAST(GETDATE() AS DATETIME));
+DECLARE @endWeek DATETIME = DATEADD(DAY, 1, CAST(GETDATE() AS DATETIME));
+
+IF @month IS NOT NULL
+BEGIN
+    SET @startMonth = CAST(DATEFROMPARTS(LEFT(@month,4), RIGHT(@month,2), 1) AS DATETIME);
+    SET @endMonth = DATEADD(MONTH, 1, @startMonth);
+END;
+
+-- WEEK
+SELECT
+    mt.transactionType,
+    m.materialId,
+    m.materialName,
+    m.unit,
+    SUM(mt.quantity) AS totalQuantity,
+    SUM(mt.quantity * m.unitPrice) AS totalAmount,
+    'WEEK' AS period
+FROM MaterialTransactions mt
+JOIN Materials m ON mt.materialId = m.materialId
+WHERE mt.transactionType IN ('USE','DAMAGED','IMPORT')
+  AND mt.transactionDate >= @startWeek
+  AND mt.transactionDate < @endWeek
+GROUP BY mt.transactionType, m.materialId, m.materialName, m.unit
+
+UNION ALL
+
+-- MONTH
+SELECT
+    mt.transactionType,
+    m.materialId,
+    m.materialName,
+    m.unit,
+    SUM(mt.quantity),
+    SUM(mt.quantity * m.unitPrice),
+    'MONTH'
+FROM MaterialTransactions mt
+JOIN Materials m ON mt.materialId = m.materialId
+WHERE mt.transactionType IN ('USE','DAMAGED','IMPORT')
+  AND (
+        @startMonth IS NULL
+        OR (mt.transactionDate >= @startMonth AND mt.transactionDate < @endMonth)
+      )
+GROUP BY mt.transactionType, m.materialId, m.materialName, m.unit
+ORDER BY materialName, transactionType, period;
+
+`;
+
+  const result = await pool
+    .request()
+    .input("monthParam", sql.NVarChar(7), month || null)
+    .query(query);
+
+  return result.recordset;
+}
+
+module.exports = {
+  ...module.exports,
+  getMaterialSummaryReport,
+  getMaterialDetailReport,
+};

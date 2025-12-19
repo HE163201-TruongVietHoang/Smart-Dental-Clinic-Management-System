@@ -100,20 +100,34 @@ export default function NurseMaterialPage() {
     if (!selectedAppointment || !materialId || !quantity) {
       return toast.info("Chọn ca + vật tư + số lượng!");
     }
+
+    if (quantity <= 0) {
+      return toast.error("Số lượng phải lớn hơn 0.");
+    }
+
+    const material = allMaterials.find(
+      (m) => m.materialId === Number(materialId)
+    );
+
+    if (material && quantity > material.stockQuantity) {
+      return toast.error(
+        `❌ Không đủ tồn kho. Hiện còn ${material.stockQuantity}.`
+      );
+    }
+
     try {
       await fetchAPI("/use", "POST", {
         materialId: +materialId,
-        userId,
         appointmentId: selectedAppointment.appointmentId,
         quantity: +quantity,
-        note: note || "Lấy thủ công",
+        note: note || "Lấy vật tư",
       });
-      ting();
-      toast.success("LẤY THÀNH CÔNG!");
+
+      toast.success("LẤY VẬT TƯ THÀNH CÔNG!");
       resetForm();
-      loadAllMaterials(); // cập nhật tồn kho ngay
+      loadAllMaterials();
     } catch (err) {
-      toast.error("Lỗi: " + err.message);
+      toast.error(err.message);
     }
   };
 
