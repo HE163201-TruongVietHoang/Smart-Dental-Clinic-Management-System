@@ -7,8 +7,16 @@ const { authMiddleware } = require('../middlewares/authMiddleware');
 // router.use(authMiddleware);
 
 // Routes cho dashboard
+
+// Tổng quan, thống kê
 router.get('/overview', dashboardController.getOverviewStats);
 router.get('/revenue', dashboardController.getRevenueStats);
 router.get('/payments', dashboardController.getPaymentStats);
+
+// Chi tiết cho dashboard overview
+router.get('/appointments', dashboardController.getAllAppointments);
+router.get('/invoices', dashboardController.getAllPaidInvoices);
+router.get('/patients', dashboardController.getAllPatients);
+router.get('/doctors', dashboardController.getAllDoctors);
 
 module.exports = router;
