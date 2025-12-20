@@ -98,7 +98,7 @@ export default function AppointmentReview() {
           >
             {/* Header */}
             <div className="text-center mb-4">
-              <h2 className="text-primary fw-bold">📋 Đánh giá cuộc hẹn</h2>
+              <h2 className="text-primary fw-bold">Đánh giá cuộc hẹn</h2>
               <p className="text-muted">
                 Chia sẻ trải nghiệm của bạn để giúp cải thiện chất lượng dịch vụ
               </p>
@@ -113,27 +113,27 @@ export default function AppointmentReview() {
                 border: "2px solid #2ECCB6",
               }}
             >
-              <h5 className="mb-3 text-primary">🗓️ Thông tin cuộc hẹn</h5>
+              <h5 className="mb-3 text-primary">Thông tin cuộc hẹn</h5>
               <div className="row">
                 <div className="col-md-6 mb-2">
                   <p className="mb-2">
-                    <strong>👨‍⚕️ Bác sĩ:</strong>{" "}
+                    <strong>Bác sĩ:</strong>{" "}
                     <span className="text-primary">
                       {appointment.doctorName || "Không rõ"}
                     </span>
                   </p>
                   <p className="mb-2">
-                    <strong>📅 Ngày khám:</strong>{" "}
+                    <strong>Ngày khám:</strong>{" "}
                     {appointment.workDate || "Không rõ"}
                   </p>
                 </div>
                 <div className="col-md-6 mb-2">
                   <p className="mb-2">
-                    <strong>🕐 Khung giờ:</strong> {appointment.startTime} -{" "}
+                    <strong>Khung giờ:</strong> {appointment.startTime} -{" "}
                     {appointment.endTime}
                   </p>
                   <p className="mb-2">
-                    <strong>💊 Dịch vụ:</strong>{" "}
+                    <strong>Dịch vụ:</strong>{" "}
                     {services.length > 0
                       ? services.map((s) => s.serviceName).join(", ")
                       : "Không rõ"}
@@ -172,7 +172,7 @@ export default function AppointmentReview() {
                 >
                   <div className="mb-3">
                     <h5 className="text-primary mb-2">
-                      💊 Đánh giá dịch vụ:{" "}
+                      Đánh giá dịch vụ:{" "}
                       <span className="fw-bold">{service.serviceName}</span>
                     </h5>
                     <p className="text-muted small mb-0">
@@ -198,15 +198,15 @@ export default function AppointmentReview() {
                 }}
                 onClick={() => navigate("/appointment/me")}
               >
-                ✅ Hoàn tất
+                Hoàn tất
               </button>
             </div>
 
             {/* Note nhỏ */}
             <div className="text-center mt-3">
               <small className="text-muted">
-                💡 Bạn có thể quay lại trang này bất cứ lúc nào để chỉnh sửa
-                đánh giá
+                Bạn có thể quay lại trang này bất cứ lúc nào để chỉnh sửa đánh
+                giá
               </small>
             </div>
           </div>
