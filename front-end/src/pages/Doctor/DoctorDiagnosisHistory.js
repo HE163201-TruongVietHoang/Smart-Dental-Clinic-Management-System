@@ -10,7 +10,7 @@ export default function DoctorDiagnosisHistory() {
   const [selectedItem, setSelectedItem] = useState(null);
 
   /* ================== PHÂN TRANG ================== */
-  const PAGE_SIZE = 10;
+  const PAGE_SIZE = 5;
   const [page, setPage] = useState(1);
 
   const token = localStorage.getItem("token");

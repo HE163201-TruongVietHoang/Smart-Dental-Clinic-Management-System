@@ -2,9 +2,34 @@ const { getPool } = require("../config/db");
 const sql = require("mssql");
 const cloudinary = require("../config/cloudinary");
 const streamifier = require("streamifier");
-// ==========================
-// 📦 CRUD cho bảng Services
-// ==========================
+
+//check trung ten
+const normalizeVietnamese = (str = "") =>
+  str
+    .toLowerCase()
+    .normalize("NFD") // tách dấu
+    .replace(/[\u0300-\u036f]/g, "") // bỏ dấu
+    .replace(/đ/g, "d")
+    .trim();
+const isDuplicateServiceName = async (
+  pool,
+  serviceName,
+  excludeServiceId = null
+) => {
+  const result = await pool.request().query(`
+    SELECT serviceId, serviceName
+    FROM Services
+  `);
+
+  const newName = normalizeVietnamese(serviceName);
+
+  return result.recordset.some((s) => {
+    if (excludeServiceId && s.serviceId === Number(excludeServiceId)) {
+      return false;
+    }
+    return normalizeVietnamese(s.serviceName) === newName;
+  });
+};
 
 // Lấy tất cả dịch vụ
 exports.getAllServices = async (req, res) => {
@@ -81,6 +106,14 @@ exports.createService = async (req, res) => {
         .json({ error: "serviceName and price are required" });
     }
 
+    // Kiểm tra trùng tên
+    const isDuplicate = await isDuplicateServiceName(pool, serviceName);
+    if (isDuplicate) {
+      return res.status(409).json({
+        message: "Tên dịch vụ đã tồn tại",
+      });
+    }
+
     await pool
       .request()
       .input("serviceName", sql.NVarChar, serviceName)
@@ -142,6 +175,20 @@ exports.updateService = async (req, res) => {
         .status(400)
         .json({ error: "serviceName and price are required" });
     }
+
+    // CHECK TRÙNG TÊN (loại trừ chính nó)
+    const isDuplicate = await isDuplicateServiceName(
+      pool,
+      serviceName,
+      req.params.id
+    );
+
+    if (isDuplicate) {
+      return res.status(409).json({
+        message: "Tên dịch vụ đã tồn tại",
+      });
+    }
+
     await pool
       .request()
       .input("serviceId", sql.Int, req.params.id)

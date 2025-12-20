@@ -26,21 +26,21 @@ export default function UserManagement() {
 
   const translateRole = (roleName) => {
     const map = {
-      Admin: 'Quản trị viên',
-      ClinicManager: 'Quản lý phòng khám',
-      Doctor: 'Bác sĩ',
-      Nurse: 'Y tá',
-      Patient: 'Bệnh nhân',
-      Receptionist: 'Lễ tân'
+      Admin: "Quản trị viên",
+      ClinicManager: "Quản lý phòng khám",
+      Doctor: "Bác sĩ",
+      Nurse: "Y tá",
+      Patient: "Bệnh nhân",
+      Receptionist: "Lễ tân",
     };
     return map[roleName] || roleName;
   };
 
   const translateGender = (gender) => {
     const map = {
-      Male: 'Nam',
-      Female: 'Nữ',
-      Other: 'Khác'
+      Male: "Nam",
+      Female: "Nữ",
+      Other: "Khác",
     };
     return map[gender] || gender;
   };
@@ -70,7 +70,10 @@ export default function UserManagement() {
       setUsers(res.data.users);
     } catch (err) {
       console.error("Fetch failed:", err);
-      setMessage("Lỗi khi tải danh sách người dùng: " + (err.response?.data?.message || err.error));
+      setMessage(
+        "Lỗi khi tải danh sách người dùng: " +
+          (err.response?.data?.message || err.error)
+      );
     }
   };
 
@@ -82,7 +85,10 @@ export default function UserManagement() {
       setRoles(res.data);
     } catch (err) {
       console.error("Fetch roles failed:", err);
-      setMessage("Lỗi khi tải danh sách vai trò: " + (err.response?.data?.message || err.error));
+      setMessage(
+        "Lỗi khi tải danh sách vai trò: " +
+          (err.response?.data?.message || err.error)
+      );
     }
   };
 
@@ -190,9 +196,18 @@ export default function UserManagement() {
       <h3 className="mb-4 fw-bold text-uppercase">Quản lý Người dùng</h3>
 
       {message && (
-        <div className={`alert ${message.includes("thành công") ? "alert-success" : "alert-danger"} alert-dismissible fade show`} role="alert">
+        <div
+          className={`alert ${
+            message.includes("thành công") ? "alert-success" : "alert-danger"
+          } alert-dismissible fade show`}
+          role="alert"
+        >
           {message}
-          <button type="button" className="btn-close" onClick={() => setMessage(null)}></button>
+          <button
+            type="button"
+            className="btn-close"
+            onClick={() => setMessage(null)}
+          ></button>
         </div>
       )}
 
@@ -299,9 +314,25 @@ export default function UserManagement() {
               required
             >
               <option value="">Chọn vai trò</option>
-              {roles.map(r => <option key={r.roleId} value={r.roleId}>{translateRole(r.roleName)}</option>)}
+              {roles.map((r) => (
+                <option key={r.roleId} value={r.roleId}>
+                  {translateRole(r.roleName)}
+                </option>
+              ))}
             </select>
           </div>
+          {editingUser && (
+            <div className="col-md-2 d-flex align-items-center gap-2">
+              <input
+                type="checkbox"
+                className="form-check-input"
+                name="isActive"
+                checked={form.isActive}
+                onChange={handleChange}
+              />
+              <label className="form-check-label">Kích hoạt</label>
+            </div>
+          )}
 
           {/* Buttons */}
           <div className="col-md-2 d-flex gap-2">
