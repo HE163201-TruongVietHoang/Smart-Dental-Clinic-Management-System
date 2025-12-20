@@ -2,12 +2,16 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
-import { Container, Row, Col, Card, Alert, Spinner, Form, Button } from 'react-bootstrap';
+import { Container, Row, Col, Card, Alert, Spinner, Form, Button, Modal, Table } from 'react-bootstrap';
 import { FaUserMd, FaUserInjured, FaCalendarCheck, FaStar, FaPills } from 'react-icons/fa';
 import { MdAttachMoney } from 'react-icons/md';
 import './DashboardPage.css';
 
 const StatisticsPage = () => {
+  const [showModal, setShowModal] = useState(false);
+  const [modalType, setModalType] = useState(null);
+  const [modalData, setModalData] = useState([]);
+  const [modalLoading, setModalLoading] = useState(false);
   const [appointmentStats, setAppointmentStats] = useState({});
   const [serviceStats, setServiceStats] = useState({});
   const [doctorStats, setDoctorStats] = useState({});
@@ -17,6 +21,48 @@ const StatisticsPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+
+  // Handler to open modal and fetch detail data
+  const handleShowModal = async (type) => {
+    setModalType(type);
+    setShowModal(true);
+    setModalLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      let res;
+      switch (type) {
+        case 'appointments':
+          res = await axios.get('http://localhost:5000/api/statistics/all-appointments', config);
+          setModalData(res.data || []);
+          break;
+        case 'doctors':
+          res = await axios.get('http://localhost:5000/api/statistics/all-doctors', config);
+          setModalData(res.data || []);
+          break;
+        case 'patients':
+          res = await axios.get('http://localhost:5000/api/statistics/all-patients', config);
+          setModalData(res.data || []);
+          break;
+        case 'paidInvoices':
+          res = await axios.get('http://localhost:5000/api/statistics/all-paid-invoices', config);
+          setModalData(res.data || []);
+          break;
+        default:
+          setModalData([]);
+      }
+    } catch (err) {
+      setModalData([]);
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
+  const handleCloseModal = () => {
+    setShowModal(false);
+    setModalType(null);
+    setModalData([]);
+  };
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -149,28 +195,28 @@ const StatisticsPage = () => {
             <Card.Body>
               <Row className="g-3 justify-content-center">
                 <Col md={2} xs={6}>
-                  <div className="p-3 text-center stat-card-overview">
+                  <div className="p-3 text-center stat-card-overview stat-card-hover" style={{cursor:'pointer'}} onClick={() => handleShowModal('appointments')}>
                     <FaCalendarCheck size={32} className="mb-2 text-success" />
                     <h4 className="fw-bold text-success mb-1">{overallStats.totalAppointments || 0}</h4>
                     <p className="text-muted mb-0">Tổng Appointments</p>
                   </div>
                 </Col>
                 <Col md={2} xs={6}>
-                  <div className="p-3 text-center stat-card-overview">
+                  <div className="p-3 text-center stat-card-overview stat-card-hover" style={{cursor:'pointer'}} onClick={() => handleShowModal('paidInvoices')}>
                     <MdAttachMoney size={32} className="mb-2 text-primary" />
                     <h4 className="fw-bold text-primary mb-1">{(overallStats.totalRevenue || 0).toLocaleString()} VND</h4>
                     <p className="text-muted mb-0">Tổng Doanh Thu</p>
                   </div>
                 </Col>
                 <Col md={2} xs={6}>
-                  <div className="p-3 text-center stat-card-overview">
+                  <div className="p-3 text-center stat-card-overview stat-card-hover" style={{cursor:'pointer'}} onClick={() => handleShowModal('doctors')}>
                     <FaUserMd size={32} className="mb-2 text-warning" />
                     <h4 className="fw-bold text-warning mb-1">{overallStats.totalDoctors || 0}</h4>
                     <p className="text-muted mb-0">Tổng Bác Sĩ</p>
                   </div>
                 </Col>
                 <Col md={2} xs={6}>
-                  <div className="p-3 text-center stat-card-overview">
+                  <div className="p-3 text-center stat-card-overview stat-card-hover" style={{cursor:'pointer'}} onClick={() => handleShowModal('patients')}>
                     <FaUserInjured size={32} className="mb-2" style={{ color: '#e74c3c' }} />
                     <h4 className="fw-bold mb-1" style={{ color: '#e74c3c' }}>{overallStats.totalPatients || 0}</h4>
                     <p className="text-muted mb-0">Tổng Bệnh Nhân</p>
@@ -181,6 +227,189 @@ const StatisticsPage = () => {
           </Card>
         </Col>
       </Row>
+
+      {/* Modal chi tiết */}
+      <Modal show={showModal} onHide={handleCloseModal} size="lg" centered scrollable>
+        <Modal.Header closeButton>
+          <Modal.Title>
+            {modalType === 'appointments' && 'Danh sách Appointments'}
+            {modalType === 'paidInvoices' && 'Danh sách Hóa Đơn Đã Thanh Toán'}
+            {modalType === 'patients' && 'Danh sách Bệnh Nhân'}
+            {modalType === 'doctors' && 'Danh sách Bác Sĩ'}
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {modalLoading ? (
+            <div className="d-flex justify-content-center align-items-center" style={{minHeight:200}}>
+              <Spinner animation="border" variant="success" />
+            </div>
+          ) : (
+            <div style={{maxHeight: '60vh', overflowY: 'auto'}}>
+              {modalType === 'appointments' && (
+                <Table striped bordered hover responsive>
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Ngày</th>
+                      <th>Bệnh nhân</th>
+                      <th>Bác sĩ</th>
+                      <th>Trạng thái</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {modalData.map((item, idx) => (
+                      <tr key={item.appointmentId || idx}>
+                        <td>{item.appointmentId}</td>
+                        <td>{item.createdAt ? new Date(item.createdAt).toLocaleDateString() : ''}</td>
+                        <td>{item.patientName}</td>
+                        <td>{item.doctorName}</td>
+                        <td>{(() => {
+                          switch(item.status) {
+                            case 'Cancelled': return 'Đã hủy';
+                            case 'Completed': return 'Hoàn thành';
+                            case 'DiagnosisCompleted': return 'Đã chẩn đoán';
+                            case 'InProgress': return 'Đang thực hiện';
+                            case 'Scheduled': return 'Đã lên lịch';
+                            default: return item.status;
+                          }
+                        })()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Table>
+              )}
+              {modalType === 'paidInvoices' && (
+                <Table striped bordered hover responsive>
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Ngày</th>
+                      <th>Tổng tiền</th>
+                      <th>Giảm giá</th>
+                      <th>Trạng thái</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {modalData.map((item, idx) => (
+                      <tr key={item.invoiceId || idx}>
+                        <td>{item.invoiceId}</td>
+                        <td>{item.issuedDate}</td>
+                        <td>{item.totalAmount?.toLocaleString()} VND</td>
+                        <td>{item.discountAmount?.toLocaleString()} VND</td>
+                        <td>{(() => {
+                          switch(item.status) {
+                            case 'Cancelled': return 'Đã hủy';
+                            case 'Paid': return 'Đã thanh toán';
+                            case 'Pending': return 'Chờ thanh toán';
+                            default: return item.status;
+                          }
+                        })()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Table>
+              )}
+              {modalType === 'patients' && (
+                <Table striped bordered hover responsive>
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Họ tên</th>
+                      <th>Email</th>
+                      <th>SĐT</th>
+                      <th>Giới tính</th>
+                      <th>Ngày sinh</th>
+                      <th>Địa chỉ</th>
+                      <th>CMND/CCCD</th>
+                      <th>Dân tộc</th>
+                      <th>Nghề nghiệp</th>
+                      <th>Trạng thái</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {modalData.map((item, idx) => (
+                      <tr key={item.userId || idx}>
+                        <td>{item.userId}</td>
+                        <td>{item.fullName}</td>
+                        <td>{item.email}</td>
+                        <td>{item.phoneNumber}</td>
+                        <td>{item.gender}</td>
+                        <td>{item.dob ? new Date(item.dob).toLocaleDateString() : ''}</td>
+                        <td>
+                          {item.address && item.address.length > 18 ? (
+                            <span title={item.address} style={{ cursor: 'pointer', textDecoration: 'underline dotted' }}>
+                              {item.address.substring(0, 18) + '...'}
+                            </span>
+                          ) : (
+                            item.address
+                          )}
+                        </td>
+                        <td>{item.citizenIdNumber}</td>
+                        <td>{item.ethnicity}</td>
+                        <td>{item.occupation}</td>
+                        <td>{item.isActive ? 'Hoạt động' : 'Không hoạt động'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Table>
+              )}
+              {modalType === 'doctors' && (
+                <Table striped bordered hover responsive>
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Họ tên</th>
+                      <th>Email</th>
+                      <th>SĐT</th>
+                      <th>Giới tính</th>
+                      <th>Ngày sinh</th>
+                      <th>Địa chỉ</th>
+                      <th>Kinh nghiệm</th>
+                      <th>Tiểu sử</th>
+                      <th>Ảnh đại diện</th>
+                      <th>Trạng thái</th>
+                      <th>Ngày tạo</th>
+                      <th>Ngày cập nhật</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {modalData.map((item, idx) => (
+                      <tr key={item.userId || idx}>
+                        <td>{item.userId}</td>
+                        <td>{item.fullName}</td>
+                        <td>{item.email}</td>
+                        <td>{item.phoneNumber}</td>
+                        <td>{item.gender}</td>
+                        <td>{item.dob ? new Date(item.dob).toLocaleDateString() : ''}</td>
+                        <td>
+                          {item.address && item.address.length > 18 ? (
+                            <span title={item.address} style={{ cursor: 'pointer', textDecoration: 'underline dotted' }}>
+                              {item.address.substring(0, 18) + '...'}
+                            </span>
+                          ) : (
+                            item.address
+                          )}
+                        </td>
+                        <td>{item.experience}</td>
+                        <td>{item.bio}</td>
+                        <td>
+                          {item.avatar ? (
+                            <img src={item.avatar} alt="avatar" style={{ width: 32, height: 32, borderRadius: '50%' }} />
+                          ) : ''}
+                        </td>
+                        <td>{item.isActive ? 'Hoạt động' : 'Không hoạt động'}</td>
+                        <td>{item.createdAt ? new Date(item.createdAt).toLocaleDateString() : ''}</td>
+                        <td>{item.updatedAt ? new Date(item.updatedAt).toLocaleDateString() : ''}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Table>
+              )}
+              {modalData.length === 0 && <div className="text-center text-muted">Không có dữ liệu</div>}
+            </div>
+          )}
+        </Modal.Body>
+      </Modal>
 
 
       {/* Appointments Stats */}
