@@ -77,11 +77,11 @@ const ChatList = ({ conversations, selectedConversation, onSelectConversation, u
                 {otherName || `User ${otherId}`}
               </div>
               <div style={{ fontSize: '14px', color: isUnread ? '#000' : '#666', marginTop: '2px', fontWeight: isUnread ? 'bold' : 'normal' }}>
-                {conv.lastMessageAt ? `Tin nhắn cuối: ${new Date(conv.lastMessageAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}` : 'Chưa có tin nhắn'}
+                {conv.lastMessageAt ? `Tin nhắn cuối: ${new Date(new Date(conv.lastMessageAt).getTime() - 7 * 60 * 60 * 1000).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })}` : 'Chưa có tin nhắn'}
               </div>
             </div>
             <div style={{ fontSize: '12px', color: '#999', textAlign: 'right' }}>
-              {conv.lastMessageAt ? new Date(conv.lastMessageAt).toLocaleDateString('vi-VN') : ''}
+              {conv.lastMessageAt ? new Date(new Date(conv.lastMessageAt).getTime() - 7 * 60 * 60 * 1000).toLocaleDateString('vi-VN') : ''}
             </div>
           </div>
         );
