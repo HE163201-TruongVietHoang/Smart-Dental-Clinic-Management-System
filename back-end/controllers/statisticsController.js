@@ -1,3 +1,4 @@
+
 const { getPool, sql } = require('../config/db');
 
 const statisticsController = {
@@ -202,6 +203,110 @@ const statisticsController = {
       });
     } catch (error) {
       console.error('Error in getOverallStats:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+    // Lấy danh sách chi tiết tất cả appointments
+  async getAllAppointments(req, res) {
+    try {
+      const pool = await getPool();
+      const query = `
+        SELECT a.appointmentId, a.createdAt, a.status, 
+               p.fullName AS patientName, d.fullName AS doctorName
+        FROM Appointments a
+        LEFT JOIN Users p ON a.patientId = p.userId
+        LEFT JOIN Users d ON a.doctorId = d.userId
+        ORDER BY a.createdAt DESC
+      `;
+      const result = await pool.request().query(query);
+      res.json(result.recordset);
+    } catch (error) {
+      console.error('Error in getAllAppointments:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
+  // Lấy danh sách chi tiết tất cả bác sĩ
+  async getAllDoctors(req, res) {
+    try {
+      const pool = await getPool();
+      const query = `
+        SELECT userId, fullName, phone, email, gender, dob, address, experience, bio, avatar, isActive, createdAt, updatedAt
+        FROM Users
+        WHERE roleId = (SELECT roleId FROM Roles WHERE roleName = 'Doctor')
+        ORDER BY fullName
+      `;
+      const result = await pool.request().query(query);
+      const data = result.recordset.map(item => ({
+        userId: item.userId,
+        fullName: item.fullName,
+        phoneNumber: item.phone,
+        email: item.email,
+        gender: item.gender,
+        dob: item.dob,
+        address: item.address,
+        experience: item.experience,
+        bio: item.bio,
+        avatar: item.avatar,
+        isActive: item.isActive,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt
+      }));
+      res.json(data);
+    } catch (error) {
+      console.error('Error in getAllDoctors:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
+  // Lấy danh sách chi tiết tất cả bệnh nhân
+  async getAllPatients(req, res) {
+    try {
+      const pool = await getPool();
+      const query = `
+        SELECT userId, fullName, phone, email, gender, dob, address, isActive, createdAt, updatedAt, avatar, citizenIdNumber, ethnicity, occupation
+        FROM Users
+        WHERE roleId = (SELECT roleId FROM Roles WHERE roleName = 'Patient')
+        ORDER BY fullName
+      `;
+      const result = await pool.request().query(query);
+      const data = result.recordset.map(item => ({
+        userId: item.userId,
+        fullName: item.fullName,
+        phoneNumber: item.phone,
+        email: item.email,
+        gender: item.gender,
+        dob: item.dob,
+        address: item.address,
+        isActive: item.isActive,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt,
+        avatar: item.avatar,
+        citizenIdNumber: item.citizenIdNumber,
+        ethnicity: item.ethnicity,
+        occupation: item.occupation
+      }));
+      res.json(data);
+    } catch (error) {
+      console.error('Error in getAllPatients:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
+  // Lấy danh sách chi tiết doanh thu hóa đơn đã thanh toán
+  async getAllPaidInvoices(req, res) {
+    try {
+      const pool = await getPool();
+      const query = `
+        SELECT invoiceId, issuedDate, totalAmount, discountAmount, status
+        FROM Invoices
+        WHERE status = 'Paid'
+        ORDER BY issuedDate DESC
+      `;
+      const result = await pool.request().query(query);
+      res.json(result.recordset);
+    } catch (error) {
+      console.error('Error in getAllPaidInvoices:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   }

@@ -14,4 +14,8 @@ router.get('/medicines', statisticsController.getMedicineStats);
 router.get('/ratings', statisticsController.getRatingStats);
 router.get('/overall', statisticsController.getOverallStats);
 
+router.get('/all-appointments', statisticsController.getAllAppointments);
+router.get('/all-doctors', statisticsController.getAllDoctors);
+router.get('/all-patients', statisticsController.getAllPatients);
+router.get('/all-paid-invoices', statisticsController.getAllPaidInvoices);
 module.exports = router;
