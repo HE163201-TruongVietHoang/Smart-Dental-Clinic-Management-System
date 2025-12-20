@@ -88,8 +88,42 @@ async function getAllNurseSchedules(nurseId) {
   return result.recordset;
 }
 
+// nurseAccess.js
+async function getNurseScheduleDetail(shiftId) {
+  const pool = await getPool();
+  const result = await pool.request().input("shiftId", sql.Int, shiftId).query(`
+      SELECT
+        ns.shiftId,
+        ns.status            AS nurseShiftStatus,
+        ns.createdAt         AS shiftCreatedAt,
+
+        s.scheduleId,
+        s.workDate,
+        s.startTime,
+        s.endTime,
+        s.status             AS scheduleStatus,
+
+        d.userId             AS doctorId,
+        d.fullName           AS doctorName,
+
+        r.roomId,
+        r.roomName,
+
+        sr.requestId
+      FROM NurseShifts ns
+      JOIN Schedules s ON ns.scheduleId = s.scheduleId
+      JOIN Users d ON s.doctorId = d.userId
+      LEFT JOIN Rooms r ON s.roomId = r.roomId
+      LEFT JOIN ScheduleRequests sr ON sr.scheduleId = s.scheduleId
+      WHERE ns.shiftId = @shiftId
+    `);
+
+  return result.recordset;
+}
+
 module.exports = {
   getLeastBusyAvailableNurse,
   createNurseShift,
   getAllNurseSchedules,
+  getNurseScheduleDetail,
 };
