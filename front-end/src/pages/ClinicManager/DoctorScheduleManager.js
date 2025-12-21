@@ -11,6 +11,7 @@ export default function ScheduleRequests() {
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [loading, setLoading] = useState(false);
   const [modalLoading, setModalLoading] = useState(false);
+  const [statusFilter, setStatusFilter] = useState("ALL");
 
   // 🔹 Lấy danh sách yêu cầu
   const fetchRequests = async () => {
@@ -157,12 +158,16 @@ export default function ScheduleRequests() {
   };
 
   // lọc theo tên dịch vụ (có dấu + không dấu)
-  const filtered = requests.filter((s) => {
-    const name = s.doctorName || "";
-    return (
+  const filtered = requests.filter((r) => {
+    const name = r.doctorName || "";
+
+    const matchName =
       normalizeText(name).includes(normalizeText(searchTerm)) ||
-      normalizeText(name, false).includes(normalizeText(searchTerm, false))
-    );
+      normalizeText(name, false).includes(normalizeText(searchTerm, false));
+
+    const matchStatus = statusFilter === "ALL" || r.status === statusFilter;
+
+    return matchName && matchStatus;
   });
 
   // pagination
@@ -177,16 +182,33 @@ export default function ScheduleRequests() {
       <h3 className="mb-4 fw-bold text-uppercase">
         Quản lý Yêu cầu Lịch làm việc
       </h3>
-      <div className="d-flex justify-content-end mb-3">
+      <div className="d-flex justify-content-end gap-2 mb-3">
+        {/* FILTER STATUS */}
+        <select
+          className="form-select"
+          style={{ maxWidth: "200px" }}
+          value={statusFilter}
+          onChange={(e) => {
+            setStatusFilter(e.target.value);
+            setCurrentPage(1);
+          }}
+        >
+          <option value="ALL">Tất cả trạng thái</option>
+          <option value="Pending">Đang chờ</option>
+          <option value="Approved">Đã duyệt</option>
+          <option value="Rejected">Từ chối</option>
+        </select>
+
+        {/* SEARCH */}
         <input
           type="text"
           className="form-control"
-          placeholder="Tìm kiếm dịch vụ..."
+          placeholder="Tìm theo tên bác sĩ..."
           style={{ maxWidth: "300px" }}
           value={searchTerm}
           onChange={(e) => {
             setSearchTerm(e.target.value);
-            setCurrentPage(1); // về trang 1 sau khi search
+            setCurrentPage(1);
           }}
         />
       </div>

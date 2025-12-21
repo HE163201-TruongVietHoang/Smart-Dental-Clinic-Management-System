@@ -10,6 +10,7 @@ export default function UserManagement() {
   const [searchTerm, setSearchTerm] = useState("");
   const [roles, setRoles] = useState([]);
   const [message, setMessage] = useState(null);
+  const [roleFilter, setRoleFilter] = useState("ALL");
 
   const [form, setForm] = useState({
     fullName: "",
@@ -177,9 +178,13 @@ export default function UserManagement() {
       .replace(/[\u0300-\u036f]/g, "")
       .replace(/đ/g, "d");
 
-  const filteredUsers = users.filter((u) =>
-    normalize(u.fullName).includes(normalize(searchTerm))
-  );
+  const filteredUsers = users.filter((u) => {
+    const matchName = normalize(u.fullName).includes(normalize(searchTerm));
+
+    const matchRole = roleFilter === "ALL" || u.roleName === roleFilter;
+
+    return matchName && matchRole;
+  });
 
   // Pagination
   const itemsPerPage = 10;
@@ -354,7 +359,26 @@ export default function UserManagement() {
       </form>
 
       {/* Search */}
-      <div className="d-flex justify-content-end mb-3">
+      <div className="d-flex justify-content-end gap-2 mb-3">
+        {/* FILTER ROLE */}
+        <select
+          className="form-select"
+          style={{ maxWidth: "220px" }}
+          value={roleFilter}
+          onChange={(e) => {
+            setRoleFilter(e.target.value);
+            setCurrentPage(1);
+          }}
+        >
+          <option value="ALL">Tất cả vai trò</option>
+          {roles.map((r) => (
+            <option key={r.roleId} value={r.roleName}>
+              {translateRole(r.roleName)}
+            </option>
+          ))}
+        </select>
+
+        {/* SEARCH */}
         <input
           type="text"
           className="form-control"
