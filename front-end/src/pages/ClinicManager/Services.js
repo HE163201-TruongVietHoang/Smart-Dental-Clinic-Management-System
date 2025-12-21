@@ -48,6 +48,7 @@ export default function ManagerServices() {
     formData.append("serviceName", newService.serviceName);
     formData.append("description", newService.description);
     formData.append("price", newService.price);
+    formData.append("duration", newService.duration);
     if (newService.image) formData.append("image", newService.image);
 
     try {
@@ -60,6 +61,7 @@ export default function ManagerServices() {
         serviceName: "",
         description: "",
         price: "",
+        duration: "",
         image: null,
       });
       setPreview(null);
@@ -83,6 +85,7 @@ export default function ManagerServices() {
     formData.append("serviceName", editingService.serviceName);
     formData.append("description", editingService.description);
     formData.append("price", editingService.price);
+    formData.append("duration", editingService.duration);
     if (editingService.image instanceof File) {
       formData.append("image", editingService.image);
     }
@@ -203,7 +206,8 @@ export default function ManagerServices() {
               <th>Tên</th>
               <th>Mô tả</th>
               <th>Giá</th>
-              <th>Ngày tạo</th>
+              <th>Thời gian</th>
+              {/* <th>Ngày tạo</th> */}
               <th></th>
             </tr>
           </thead>
@@ -219,7 +223,8 @@ export default function ManagerServices() {
                 <td>{s.serviceName}</td>
                 <td style={{ whiteSpace: "pre-wrap" }}>{s.description}</td>
                 <td>{Number(s.price).toLocaleString("vi-VN")} ₫</td>
-                <td>{new Date(s.createdAt).toLocaleDateString("vi-VN")}</td>
+                <td>{s.duration} ngày</td>
+                {/* <td>{new Date(s.createdAt).toLocaleDateString("vi-VN")}</td> */}
                 <td>
                   <button
                     className="btn btn-sm btn-outline-primary me-2"
@@ -345,6 +350,32 @@ export default function ManagerServices() {
                             price: e.target.value,
                           })
                     }
+                  />
+
+                  <input
+                    type="number"
+                    min="0"
+                    step="1" // chỉ cho số nguyên
+                    className="form-control"
+                    placeholder="Thời lượng (ngày)"
+                    required
+                    value={editingService?.duration || newService.duration}
+                    onChange={(e) => {
+                      const value = e.target.value;
+
+                      // Không cho số âm
+                      if (value === "" || Number(value) >= 0) {
+                        editingService
+                          ? setEditingService({
+                              ...editingService,
+                              duration: Math.floor(Number(value)), // ép số nguyên
+                            })
+                          : setNewService({
+                              ...newService,
+                              duration: Math.floor(Number(value)),
+                            });
+                      }
+                    }}
                   />
 
                   <div className="d-flex align-items-center gap-2">

@@ -258,15 +258,27 @@ export default function DoctorProfile() {
               <strong>Kinh nghiệm:</strong>{" "}
               {isEditing ? (
                 <Form.Control
-                  type="text"
+                  type="number"
                   name="experience"
+                  min="0"
+                  step="1"
                   value={form.experience}
-                  onChange={handleChange}
+                  onChange={(e) => {
+                    const value = e.target.value;
+
+                    if (value === "" || Number(value) >= 0) {
+                      setForm({
+                        ...form,
+                        experience: Math.floor(Number(value)),
+                      });
+                    }
+                  }}
                 />
               ) : (
-                user.experience
+                `${user.experience} năm`
               )}
             </p>
+
             <p>
               <strong>Giới thiệu:</strong>{" "}
               {isEditing ? (

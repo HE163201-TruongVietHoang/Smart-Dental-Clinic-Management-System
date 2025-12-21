@@ -71,7 +71,7 @@ function SignIn() {
             navigate("/nurse/materials");
             break;
           case "ClinicManager":
-            navigate("/clinicmanager/dashboard");
+            navigate("/clinicmanager/statistics");
             break;
           case "Receptionist":
             navigate("/receptionist/patient/appointment");
