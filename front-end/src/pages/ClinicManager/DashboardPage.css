@@ -50,3 +50,27 @@
     padding: 8px 2px 2px 2px;
   }
 }
+.stat-card-overview {
+  height: 150px;
+  background: #ffffff;
+  border-radius: 18px;
+  padding: 20px 10px;
+  text-align: center;
+  cursor: pointer;
+
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+
+  transition: all 0.25s ease;
+}
+
+.stat-card-hover:hover {
+  transform: translateY(-6px) scale(1.03);
+  box-shadow: 0 15px 30px rgba(0, 0, 0, 0.12);
+}
+
+.stat-icon {
+  opacity: 0.9;
+}

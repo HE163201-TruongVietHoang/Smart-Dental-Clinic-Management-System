@@ -81,10 +81,11 @@ async function createScheduleRequestController(req, res) {
       details: result.results,
     });
   } catch (err) {
-    console.error(" Lỗi tạo lịch:", err);
+    console.error("Lỗi tạo lịch:", err);
+
     res.status(500).json({
-      message: "Không còn phòng trống nào để tạo lịch.",
-      error: err.message,
+      success: false,
+      message: "Không tạo được lịch",
     });
   }
 }
@@ -125,10 +126,7 @@ async function checkAvailabilityController(req, res) {
 
 async function listScheduleRequestsController(req, res) {
   try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
-
-    const result = await listScheduleRequests(page, limit);
+    const result = await listScheduleRequests();
 
     res.json({
       success: true,
