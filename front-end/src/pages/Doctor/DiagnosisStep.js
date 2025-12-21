@@ -164,7 +164,6 @@ export default function DiagnosisStep() {
 const wrap = {
   minHeight: "100vh",
   padding: 24,
-  background: "#f6fffd",
 };
 
 const card = {
