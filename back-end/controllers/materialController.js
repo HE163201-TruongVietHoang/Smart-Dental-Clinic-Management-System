@@ -143,26 +143,21 @@ exports.importMaterial = async (req, res) => {
 
 exports.addNewMaterial = async (req, res) => {
   try {
-    const { materialName, unit, unitPrice } = req.body;
-
-    if (!materialName || !unit || unitPrice == null) {
-      return res.status(400).json({ error: "Thiếu thông tin vật tư." });
-    }
-
-    if (unitPrice < 0) {
-      return res.status(400).json({ error: "Giá vật tư không được là số âm." });
-    }
-
-    const result = await materialService.addNewMaterial({
-      materialName,
-      unit,
-      unitPrice,
-    });
-
-    res.json(result);
+    const result = await materialAccess.addNewMaterial(req.body);
+    return res.json(result);
   } catch (err) {
-    console.error("addNewMaterial error:", err);
-    res.status(500).json({ error: err.message });
+    // ❗ lỗi nghiệp vụ → KHÔNG log đỏ
+    if (
+      err.message === "Vật tư trùng tên và đơn vị đã tồn tại" ||
+      err.message.startsWith("Tên vật tư") ||
+      err.message.startsWith("Đơn vị")
+    ) {
+      return res.status(400).json({ error: err.message });
+    }
+
+    // ❌ lỗi hệ thống → log
+    console.error("addNewMaterial SYSTEM ERROR:", err);
+    return res.status(500).json({ error: "Lỗi hệ thống" });
   }
 };
 
@@ -178,6 +173,30 @@ exports.getTodayAppointments = async (req, res) => {
   } catch (err) {
     console.error("getTodayAppointments error:", err);
     res.status(500).json({ error: err.message });
+  }
+};
+
+exports.markMaterialUsed = async (req, res) => {
+  try {
+    const { appointmentId, materialId, quantityUsed, note } = req.body;
+    const userId = req.user.userId; // từ authMiddleware
+
+    if (!appointmentId || !materialId || !quantityUsed) {
+      return res.status(400).json({ error: "Thiếu dữ liệu bắt buộc" });
+    }
+
+    const result = await materialAccess.addUsedFinalTransaction({
+      appointmentId,
+      materialId,
+      quantityUsed,
+      note,
+      userId,
+    });
+
+    res.json(result);
+  } catch (err) {
+    console.error("markMaterialUsed error:", err);
+    res.status(400).json({ error: err.message });
   }
 };
 
@@ -409,6 +428,29 @@ exports.getMaterialSummaryReport = async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Không thể lấy báo cáo vật tư" });
+  }
+};
+
+exports.updateMaterialInfo = async (req, res) => {
+  try {
+    const { materialId } = req.params;
+    const { materialName, unit, unitPrice } = req.body;
+
+    const result = await materialService.updateMaterialInfo(
+      parseInt(materialId, 10),
+      { materialName, unit, unitPrice }
+    );
+
+    res.json(result);
+  } catch (err) {
+    const msg = err.message || "Lỗi server";
+    const isValidation =
+      msg.includes("phải") ||
+      msg.includes("không") ||
+      msg.includes("tồn tại") ||
+      msg.includes("trùng");
+
+    res.status(isValidation ? 400 : 500).json({ error: msg });
   }
 };
 

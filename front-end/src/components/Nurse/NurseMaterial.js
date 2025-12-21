@@ -3,6 +3,22 @@ import Header from "../../components/home/Header/Header";
 import Footer from "../../components/home/Footer/Footer";
 import { toast } from "react-toastify";
 
+const formatTime = (time) => {
+  if (!time) return "—";
+
+  // Backend thường trả "08:30:00"
+  if (typeof time === "string") {
+    return time.slice(0, 5);
+  }
+
+  // Fallback nếu là Date
+  const d = new Date(time);
+  return d.toLocaleTimeString("vi-VN", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
 export default function NurseMaterialPage() {
   const [appointments, setAppointments] = useState([]);
   const [allMaterials, setAllMaterials] = useState([]);
@@ -14,6 +30,10 @@ export default function NurseMaterialPage() {
   const [quantity, setQuantity] = useState(1);
   const [note, setNote] = useState("");
   const [activeTab, setActiveTab] = useState("use"); // use, return, used
+  const [standardUsed, setStandardUsed] = useState(false);
+  const [usedStandardAppointments, setUsedStandardAppointments] = useState(() =>
+    JSON.parse(localStorage.getItem("usedStandardAppointments") || "[]")
+  );
 
   const token = localStorage.getItem("token");
   const userId = JSON.parse(localStorage.getItem("user") || "{}").userId;
@@ -75,16 +95,23 @@ export default function NurseMaterialPage() {
   // CHỌN CA → LOAD ĐỊNH MỨC
   // =========================================
   const handleAppointmentChange = async (appointmentId) => {
-    const appointment = appointments.find(
-      (a) => a.appointmentId === parseInt(appointmentId)
+    const appt = appointments.find(
+      (a) => a.appointmentId === Number(appointmentId)
     );
-    setSelectedAppointment(appointment);
+
+    setSelectedAppointment(appt);
+
+    const alreadyUsed = usedStandardAppointments.includes(
+      Number(appointmentId)
+    );
+
+    setStandardUsed(alreadyUsed);
     setServiceMaterials([]);
 
-    if (appointment?.serviceId) {
+    if (appt?.appointmentId && !alreadyUsed) {
       try {
         const data = await fetchAPI(
-          `/appointment/${appointment.appointmentId}/materials`
+          `/appointment/${appt.appointmentId}/materials`
         );
         setServiceMaterials(data);
       } catch {
@@ -196,7 +223,19 @@ export default function NurseMaterialPage() {
       }
     }
     ting();
-    toast.success(`HOÀN TẤT!\nThành công: ${ok}\nLỗi: ${err}`);
+    toast.success("✅ Lấy vật tư định mức thành công!");
+
+    const updated = [
+      ...usedStandardAppointments,
+      selectedAppointment.appointmentId,
+    ];
+
+    setUsedStandardAppointments(updated);
+    localStorage.setItem("usedStandardAppointments", JSON.stringify(updated));
+
+    setServiceMaterials([]);
+    setStandardUsed(true);
+
     loadAllMaterials();
   };
 
@@ -244,40 +283,57 @@ export default function NurseMaterialPage() {
               QUẢN LÝ VẬT TƯ – Y TÁ
             </h2>
 
-            {/* 1. CHỌN CA */}
-            <div
-              style={{
-                marginBottom: "30px",
-                padding: "20px",
-                background: "#f8f9fa",
-                borderRadius: "10px",
-              }}
-            >
-              <label
-                style={{
-                  fontWeight: 600,
-                  display: "block",
-                  marginBottom: "10px",
-                }}
-              >
-                CHỌN CA KHÁM HÔM NAY:
-              </label>
-              <select
-                onChange={(e) => handleAppointmentChange(e.target.value)}
-                style={selectStyle}
-              >
-                <option value="">-- Chọn ca --</option>
-                {appointments.map((a) => (
-                  <option key={a.appointmentId} value={a.appointmentId}>
-                    #{a.appointmentId} | {a.patientName} | {a.startTime}-
-                    {a.endTime} | BS: {a.doctorName} | DV: {a.serviceNames}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {/* ===== CHỌN CA KHÁM ===== */}
+            <h3 style={{ marginBottom: 12 }}>Ca khám hôm nay</h3>
+
+            {appointments.length === 0 ? (
+              <p style={{ color: "#6b7280" }}>Không có ca khám nào</p>
+            ) : (
+              <div style={appointmentGrid}>
+                {appointments.map((a) => {
+                  const isSelected =
+                    selectedAppointment?.appointmentId === a.appointmentId;
+
+                  return (
+                    <div
+                      key={a.appointmentId}
+                      style={{
+                        ...appointmentCard,
+                        borderColor: isSelected ? "#22c7a9" : "#e5e7eb",
+                        background: isSelected ? "#ecfdf9" : "#fff",
+                      }}
+                      onClick={() => handleAppointmentChange(a.appointmentId)}
+                    >
+                      <div style={rowBetween}>
+                        <span style={timeText}>
+                          {formatTime(a.startTime)} – {formatTime(a.endTime)}
+                        </span>
+                        <span style={badge}>#{a.appointmentId}</span>
+                      </div>
+
+                      <div style={patientName}>{a.patientName}</div>
+
+                      <div style={reasonText}>
+                        <b>Bác sĩ:</b> {a.doctorName}
+                      </div>
+
+                      <div style={reasonText}>
+                        <b>Dịch vụ:</b> {a.serviceNames || "—"}
+                      </div>
+
+                      <div style={footerRow}>
+                        {isSelected && (
+                          <span style={selectedText}>✓ Đã chọn</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
             {/* 2. ĐỊNH MỨC */}
-            {serviceMaterials.length > 0 && (
+            {serviceMaterials.length > 0 && !standardUsed && (
               <div
                 style={{
                   marginBottom: "30px",
@@ -462,6 +518,66 @@ export default function NurseMaterialPage() {
 }
 
 // STYLE ĐẸP
+const appointmentGrid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
+  gap: 14,
+  marginBottom: 30,
+};
+
+const appointmentCard = {
+  padding: 16,
+  borderRadius: 14,
+  border: "2px solid #e5e7eb",
+  cursor: "pointer",
+  transition: "all .2s ease",
+  boxShadow: "0 4px 12px rgba(0,0,0,.06)",
+};
+
+const rowBetween = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  marginBottom: 6,
+};
+
+const timeText = {
+  fontWeight: 700,
+  color: "#065f46",
+};
+
+const badge = {
+  padding: "4px 10px",
+  borderRadius: 999,
+  background: "#d1fae5",
+  color: "#065f46",
+  fontSize: 12,
+  fontWeight: 700,
+};
+
+const patientName = {
+  fontSize: 16,
+  fontWeight: 700,
+  marginBottom: 4,
+};
+
+const reasonText = {
+  fontSize: 14,
+  color: "#374151",
+  marginBottom: 6,
+};
+
+const footerRow = {
+  display: "flex",
+  justifyContent: "flex-end",
+};
+
+const selectedText = {
+  fontSize: 12,
+  color: "#10b981",
+  fontWeight: 700,
+};
+
 const selectStyle = {
   width: "100%",
   padding: "12px",
