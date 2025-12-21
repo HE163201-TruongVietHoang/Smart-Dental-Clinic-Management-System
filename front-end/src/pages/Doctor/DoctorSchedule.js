@@ -54,7 +54,7 @@ export default function DoctorSchedule({ doctorId }) {
 
           return {
             id: s.scheduleId,
-            title: ` (${s.startTime}-${s.endTime})`,
+            title: ` (${s.startTime}-${s.endTime}) (${s.room})`,
             start,
             end,
             backgroundColor: colors[s.status] || colors.Default,
