@@ -9,6 +9,7 @@ const {
   getDoctorScheduleDetailService,
   cancelScheduleRequestService,
 } = require("../services/scheduleService");
+const { getIO } = require("../utils/socket");
 
 async function createScheduleRequestController(req, res) {
   try {
@@ -62,6 +63,16 @@ async function createScheduleRequestController(req, res) {
         unavailable: result.unavailable,
       });
     }
+    // 🔥 SOCKET: báo cho Clinic có request mới
+    const io = getIO();
+    io.emit("schedule:created", {
+      requestId: result.requestId, // 🔥 BẮT BUỘC
+      doctorId,
+      doctorName: req.user.fullName,
+      note,
+      createdAt: new Date(),
+      status: "Pending",
+    });
 
     res.status(201).json({
       success: true,
@@ -139,13 +150,20 @@ async function getScheduleRequestDetailsController(req, res) {
       return res.status(400).json({ message: "requestId không hợp lệ" });
 
     const details = await getScheduleRequestDetails(requestId);
+
+    // 🔥 QUAN TRỌNG
+    if (!details || !details.request) {
+      return res.status(410).json({
+        success: false,
+        code: "REQUEST_DELETED",
+        message: "Yêu cầu này đã bị bác sĩ hủy",
+      });
+    }
+
     res.status(200).json({ success: true, details });
   } catch (err) {
-    console.error(" Lỗi lấy chi tiết request:", err);
-    res.status(500).json({
-      message: "Lỗi server khi lấy chi tiết request.",
-      error: err.message,
-    });
+    console.error("Lỗi lấy chi tiết request:", err);
+    res.status(500).json({ message: "Lỗi server" });
   }
 }
 
@@ -158,6 +176,18 @@ async function approveScheduleRequestController(req, res) {
       return res.status(400).json({ message: "requestId không hợp lệ" });
 
     const result = await adminApproveRequest(requestId, adminId);
+    // SAU adminApproveRequest(...)
+    const detail = await getScheduleRequestDetails(requestId);
+    const doctorId = detail?.request?.doctorId;
+
+    if (doctorId) {
+      const io = getIO();
+      io.to(String(doctorId)).emit("schedule:updated", {
+        requestId,
+        status: "Approved",
+      });
+    }
+
     res.status(200).json(result);
   } catch (err) {
     console.error(" Lỗi khi duyệt request:", err);
@@ -177,6 +207,17 @@ async function rejectScheduleRequestController(req, res) {
       return res.status(400).json({ message: "requestId không hợp lệ" });
 
     await adminRejectRequest(requestId, adminId, reason);
+    const detail = await getScheduleRequestDetails(requestId);
+    const doctorId = detail?.request?.doctorId;
+
+    if (doctorId) {
+      const io = getIO();
+      io.to(String(doctorId)).emit("schedule:updated", {
+        requestId,
+        status: "Rejected",
+      });
+    }
+
     res.status(200).json({ success: true, message: "Đã từ chối request." });
   } catch (err) {
     console.error(" Lỗi khi từ chối request:", err);
@@ -225,19 +266,29 @@ const cancelScheduleRequest = async (req, res) => {
       .status(200)
       .json({ message: "Đã hủy và xóa yêu cầu thành công" });
   } catch (error) {
+    // ✅ TRƯỜNG HỢP ĐÚNG NGHIỆP VỤ – KHÔNG LOG ERROR
+    if (error.message === "CANNOT_CANCEL") {
+      return res.status(409).json({
+        message: "Yêu cầu đã được duyệt hoặc từ chối, không thể hủy.",
+      });
+    }
+
     if (error.message === "NOT_FOUND") {
       return res.status(404).json({ message: "Không tìm thấy yêu cầu" });
     }
+
     if (error.message === "FORBIDDEN") {
       return res
         .status(403)
         .json({ message: "Không có quyền hủy yêu cầu này" });
     }
 
+    // ❌ CHỈ LOG KHI LỖI THẬT
     console.error("Cancel Schedule Request Error:", error);
     return res.status(500).json({ message: "Lỗi hệ thống" });
   }
 };
+
 module.exports = {
   createScheduleRequestController,
   getDoctorSchedulesController,

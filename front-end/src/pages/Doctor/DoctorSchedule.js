@@ -6,6 +6,8 @@ import interactionPlugin from "@fullcalendar/interaction";
 import { parse } from "date-fns";
 import "./doctor-schedule-calendar.css";
 import { toast } from "react-toastify";
+import { io } from "socket.io-client";
+const socket = io("http://localhost:5000");
 
 export default function DoctorSchedule({ doctorId }) {
   const [events, setEvents] = useState([]);
@@ -86,6 +88,41 @@ export default function DoctorSchedule({ doctorId }) {
     };
 
     fetchSchedules();
+  }, [doctorId]);
+  useEffect(() => {
+    if (!doctorId) return;
+
+    // 🔹 Join room theo userId
+    socket.emit("join", doctorId);
+
+    // 🔹 Admin duyệt / từ chối → reload lịch ngay
+    socket.on("schedule:updated", ({ requestId, status }) => {
+      setEvents((prev) =>
+        prev.map((e) => {
+          if (e.extendedProps.requestId === requestId) {
+            const colors = {
+              Approved: "#10b981",
+              Pending: "#f59e0b",
+              Rejected: "#ef4444",
+            };
+
+            return {
+              ...e,
+              backgroundColor: colors[status] || e.backgroundColor,
+              extendedProps: {
+                ...e.extendedProps,
+                status,
+              },
+            };
+          }
+          return e;
+        })
+      );
+    });
+
+    return () => {
+      socket.off("schedule:updated");
+    };
   }, [doctorId]);
 
   // 🔹 Khi click vào ca làm việc
@@ -441,6 +478,9 @@ export default function DoctorSchedule({ doctorId }) {
                       setCalendarKey((prev) => prev + 1);
                     } else {
                       toast.error("" + data.message);
+                      setTimeout(() => {
+                        window.location.reload();
+                      }, 1200); // đợi user đọc toast
                     }
                   } catch (err) {
                     console.error("Lỗi hủy request:", err);

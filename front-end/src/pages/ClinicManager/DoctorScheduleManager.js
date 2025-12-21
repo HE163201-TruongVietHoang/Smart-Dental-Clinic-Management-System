@@ -3,6 +3,8 @@ import axios from "axios";
 import { FaEye, FaCheck, FaTimes } from "react-icons/fa";
 import { Modal, Button, Table, Spinner } from "react-bootstrap";
 import { toast } from "react-toastify";
+import { io } from "socket.io-client";
+const socket = io("http://localhost:5000");
 
 export default function ScheduleRequests() {
   const [requests, setRequests] = useState([]);
@@ -35,22 +37,63 @@ export default function ScheduleRequests() {
     fetchRequests();
   }, []);
 
+  useEffect(() => {
+    socket.on("schedule:created", () => {
+      // 🔥 KHÔNG TIN PAYLOAD SOCKET
+      // 🔥 LOAD LẠI DATA CHUẨN TỪ DB
+      fetchRequests();
+    });
+
+    return () => {
+      socket.off("schedule:created");
+    };
+  }, []);
+
+  // 🔹 3. 🔥 SOCKET – realtime khi Doctor DELETE request
+  useEffect(() => {
+    socket.on("schedule:deleted", ({ requestId }) => {
+      setSelectedRequest((prev) =>
+        prev?.request?.requestId === requestId ? null : prev
+      );
+
+      setRequests((prev) => prev.filter((r) => r.requestId !== requestId));
+
+      setRequestDeleted(true);
+    });
+
+    return () => {
+      socket.off("schedule:deleted");
+    };
+  }, []);
+
   // 🔹 Lấy chi tiết 1 yêu cầu
   const fetchDetail = async (id) => {
     try {
       setModalLoading(true);
       const token = localStorage.getItem("token");
+
       const res = await axios.get(
         `http://localhost:5000/api/schedules/requests/${id}`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
+        { headers: { Authorization: `Bearer ${token}` } }
       );
+
       if (res.data.success) {
         setSelectedRequest(res.data.details);
       }
     } catch (err) {
-      console.error("Lỗi khi tải chi tiết yêu cầu:", err);
+      // 🔥 TRƯỜNG HỢP REQUEST ĐÃ BỊ DELETE
+      if (err.response?.status === 410) {
+        toast.warning("Yêu cầu này đã bị bác sĩ hủy");
+
+        // ❗ đóng modal
+        setSelectedRequest(null);
+
+        // ❗ loại khỏi danh sách
+        setRequests((prev) => prev.filter((r) => r.requestId !== id));
+
+        return;
+      }
+
       toast.error("Không thể tải chi tiết yêu cầu.");
     } finally {
       setModalLoading(false);
@@ -249,11 +292,15 @@ export default function ScheduleRequests() {
         centered
       >
         <Modal.Header closeButton>
-          <Modal.Title>
-            {modalLoading
-              ? "Đang tải..."
-              : `Chi tiết yêu cầu #${selectedRequest?.request.requestId}`}
-          </Modal.Title>
+          {modalLoading ? (
+            <Spinner />
+          ) : selectedRequest && selectedRequest.request ? (
+            <>{/* UI chi tiết bình thường */}</>
+          ) : (
+            <p className="text-danger text-center">
+              Yêu cầu này không còn tồn tại (đã bị bác sĩ hủy).
+            </p>
+          )}
         </Modal.Header>
         <Modal.Body>
           {modalLoading ? (

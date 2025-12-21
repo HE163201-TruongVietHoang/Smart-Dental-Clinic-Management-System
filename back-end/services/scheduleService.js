@@ -374,10 +374,28 @@ async function getDoctorScheduleDetailService(scheduleId, doctorId) {
   return schedule;
 }
 
-async function cancelScheduleRequestService(requestId) {
+async function cancelScheduleRequestService(requestId, doctorId) {
+  const pool = await getPool();
+
+  const r = await pool.request().input("requestId", sql.Int, requestId).query(`
+      SELECT status, doctorId
+      FROM ScheduleRequests
+      WHERE requestId = @requestId
+    `);
+
+  if (!r.recordset.length) throw new Error("NOT_FOUND");
+
+  const req = r.recordset[0];
+
+  if (req.doctorId !== doctorId) throw new Error("FORBIDDEN");
+
+  // ⛔ ĐÃ DUYỆT / TỪ CHỐI → CẤM HỦY
+  if (req.status !== "Pending") {
+    throw new Error("CANNOT_CANCEL");
+  }
+
   await deleteScheduleByRequestId(requestId);
   await deleteScheduleRequest(requestId);
-  return true;
 }
 
 // ======================================================
