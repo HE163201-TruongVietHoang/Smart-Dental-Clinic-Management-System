@@ -266,12 +266,12 @@ export default function ClinicManagerRoomsPage() {
                         Sửa
                       </button>
 
-                      <button
+                      {/* <button
                         onClick={() => handleDeleteRoom(r.roomId)}
                         style={btnDanger}
                       >
                         Xóa
-                      </button>
+                      </button> */}
                     </td>
                   </tr>
                 ))}
