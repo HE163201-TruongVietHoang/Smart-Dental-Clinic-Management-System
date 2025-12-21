@@ -28,11 +28,11 @@ function ClinicManagerLayout({ children }) {
   const token = localStorage.getItem("token");
 
   const menu = [
-    {
-      name: "Bảng điều khiển",
-      icon: <FaTachometerAlt />,
-      path: "/clinicmanager/dashboard",
-    },
+    // {
+    //   name: "Bảng điều khiển",
+    //   icon: <FaTachometerAlt />,
+    //   path: "/clinicmanager/dashboard",
+    // },
     {
       name: "Thống kê",
       icon: <FaChartBar />,
