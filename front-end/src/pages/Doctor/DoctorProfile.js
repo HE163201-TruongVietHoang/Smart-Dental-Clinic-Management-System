@@ -34,6 +34,8 @@ export default function DoctorProfile() {
           fullName: res.data.fullName || "",
           phone: res.data.phone || "",
           address: res.data.address || "",
+          experience: res.data.experience || "",
+          bio: res.data.bio || "",
           gender: res.data.gender || "",
           dob: res.data.dob || "",
         });
@@ -250,6 +252,33 @@ export default function DoctorProfile() {
                 />
               ) : (
                 user.address
+              )}
+            </p>
+            <p>
+              <strong>Kinh nghiệm:</strong>{" "}
+              {isEditing ? (
+                <Form.Control
+                  type="text"
+                  name="experience"
+                  value={form.experience}
+                  onChange={handleChange}
+                />
+              ) : (
+                user.experience
+              )}
+            </p>
+            <p>
+              <strong>Giới thiệu:</strong>{" "}
+              {isEditing ? (
+                <Form.Control
+                  as="textarea"
+                  name="bio"
+                  value={form.bio}
+                  onChange={handleChange}
+                  rows={2}
+                />
+              ) : (
+                user.bio
               )}
             </p>
             <p>

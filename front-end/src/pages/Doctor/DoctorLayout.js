@@ -105,7 +105,11 @@ function DoctorLayout({ children }) {
       setUnreadCount((prev) => Math.max(prev - 1, 0));
       setNotiOpen(false);
 
-      if (n.type === "appointment") {
+      if (
+        n.type === "schedule_approved" ||
+        n.type === "appointment" ||
+        n.type === "schedule_approval"
+      ) {
         navigate("/doctor/schedule");
       }
     } catch (err) {

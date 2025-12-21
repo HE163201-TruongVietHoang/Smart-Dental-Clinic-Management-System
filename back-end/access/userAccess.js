@@ -1,4 +1,3 @@
-
 const { getPool } = require("../config/db");
 const sql = require("mssql");
 
@@ -6,8 +5,7 @@ async function findUserByEmailOrPhone(identifier) {
   const pool = await getPool();
   const result = await pool
     .request()
-    .input("identifier", sql.NVarChar, identifier)
-    .query(`
+    .input("identifier", sql.NVarChar, identifier).query(`
       SELECT 
         u.userId, u.fullName, u.password, u.roleId, 
         r.roleName, u.otpCode, u.otpExpiresAt, 
@@ -20,9 +18,7 @@ async function findUserByEmailOrPhone(identifier) {
 }
 async function activateUser(userId) {
   const pool = await getPool();
-  await pool.request()
-    .input("userId", sql.Int, userId)
-    .query(`
+  await pool.request().input("userId", sql.Int, userId).query(`
       UPDATE dbo.Users
       SET isActive = 1, isVerify = 1, otpCode = NULL, otpExpiresAt = NULL
       WHERE userId = @userId
@@ -30,9 +26,7 @@ async function activateUser(userId) {
 }
 async function findUserByEmail(email) {
   const pool = await getPool();
-  const result = await pool
-    .request()
-    .input("email", sql.NVarChar, email)
+  const result = await pool.request().input("email", sql.NVarChar, email)
     .query(`
       SELECT userId, email
       FROM dbo.Users
@@ -44,9 +38,7 @@ async function findUserByEmail(email) {
 // 🔍 Kiểm tra phone tồn tại
 async function findUserByPhone(phone) {
   const pool = await getPool();
-  const result = await pool
-    .request()
-    .input("phone", sql.NVarChar, phone)
+  const result = await pool.request().input("phone", sql.NVarChar, phone)
     .query(`
       SELECT userId, phone
       FROM dbo.Users
@@ -60,7 +52,7 @@ async function getUserById(userId) {
     .request()
     .input("userId", sql.Int, userId)
     .query(
-      `SELECT u.userId, u.fullName, u.email, u.phone, u.gender, u.dob, u.address,u.avatar , u.citizenIdNumber, u.occupation, u.ethnicity, r.roleName, u.createdAt
+      `SELECT u.userId, u.fullName, u.email, u.phone, u.gender, u.dob, u.address, u.experience, u.bio,u.avatar , u.citizenIdNumber, u.occupation, u.ethnicity, r.roleName, u.createdAt
            FROM dbo.Users u
            JOIN dbo.Roles r ON u.roleId = r.roleId
            WHERE u.userId = @userId`
@@ -92,8 +84,15 @@ async function updatePassword(userId, hashedPassword) {
     );
 }
 
-
-async function createUser({ email, password, fullName, phone, gender, dob, address}) {
+async function createUser({
+  email,
+  password,
+  fullName,
+  phone,
+  gender,
+  dob,
+  address,
+}) {
   const pool = await getPool();
 
   const roleResult = await pool
@@ -118,8 +117,7 @@ async function createUser({ email, password, fullName, phone, gender, dob, addre
     .input("address", sql.NVarChar, address)
     .input("roleId", sql.Int, roleId)
     .input("isActive", sql.Bit, true)
-    .input("isVerify", sql.Bit, false)
-    .query(`
+    .input("isVerify", sql.Bit, false).query(`
       INSERT INTO dbo.Users (email, password, fullName, phone, gender, dob, address, roleId)
       VALUES (@email, @password, @fullName, @phone, @gender, @dob, @address, @roleId);
       SELECT SCOPE_IDENTITY() AS userId;
@@ -129,10 +127,10 @@ async function createUser({ email, password, fullName, phone, gender, dob, addre
 }
 async function verifyUserOtp(userId, otpCode) {
   const pool = await getPool();
-  const result = await pool.request()
+  const result = await pool
+    .request()
     .input("userId", sql.Int, userId)
-    .input("otpCode", sql.NVarChar, otpCode)
-    .query(`
+    .input("otpCode", sql.NVarChar, otpCode).query(`
       SELECT userId, fullName, otpCode, otpExpiresAt, isVerify, roleName
       FROM dbo.Users
       Join dbo.Roles ON dbo.Users.roleId = dbo.Roles.roleId
@@ -245,7 +243,18 @@ async function deleteUser(userId) {
 }
 
 const updateUserProfile = async (userId, data) => {
-  const { fullName, phone, gender, dob, address, citizenIdNumber, occupation, ethnicity } = data;
+  const {
+    fullName,
+    phone,
+    gender,
+    dob,
+    address,
+    experience,
+    bio,
+    citizenIdNumber,
+    occupation,
+    ethnicity,
+  } = data;
   const pool = await getPool();
   await pool
     .request()
@@ -255,12 +264,13 @@ const updateUserProfile = async (userId, data) => {
     .input("gender", sql.NVarChar, gender)
     .input("dob", sql.Date, dob)
     .input("address", sql.NVarChar, address)
+    .input("experience", sql.Int, experience)
+    .input("bio", sql.NVarChar, bio)
     .input("citizenIdNumber", sql.NVarChar, citizenIdNumber)
     .input("occupation", sql.NVarChar, occupation)
-    .input("ethnicity", sql.NVarChar, ethnicity)
-    .query(`
+    .input("ethnicity", sql.NVarChar, ethnicity).query(`
           UPDATE Users
-          SET fullName=@fullName, phone=@phone, gender=@gender, dob=@dob, address=@address, updatedAt=GETDATE(), 
+          SET fullName=@fullName, phone=@phone, gender=@gender, dob=@dob, address=@address, experience=@experience, bio=@bio, updatedAt=GETDATE(), 
           citizenIdNumber=@citizenIdNumber, occupation=@occupation, ethnicity=@ethnicity 
           WHERE userId=@userId
         `);
@@ -293,10 +303,10 @@ const logoutAllSessions = async (userId) => {
 };
 const updateAvatar = async (userId, avatarUrl) => {
   const pool = await getPool();
-  await pool.request()
+  await pool
+    .request()
     .input("userId", sql.Int, userId)
-    .input("avatar", sql.NVarChar(255), avatarUrl)
-    .query(`
+    .input("avatar", sql.NVarChar(255), avatarUrl).query(`
       UPDATE Users
       SET avatar = @avatar, updatedAt = GETDATE()
       WHERE userId = @userId
@@ -306,8 +316,7 @@ const updateAvatar = async (userId, avatarUrl) => {
 };
 async function getFirstReceptionist() {
   const pool = await getPool();
-  const result = await pool.request()
-    .query(`
+  const result = await pool.request().query(`
       SELECT TOP 1 u.userId, u.fullName, u.email, u.phone
       FROM dbo.Users u
       JOIN dbo.Roles r ON u.roleId = r.roleId
@@ -318,8 +327,7 @@ async function getFirstReceptionist() {
 }
 async function getAllReceptionist() {
   const pool = await getPool();
-  const result = await pool.request()
-    .query(`
+  const result = await pool.request().query(`
       SELECT u.userId, u.fullName, u.email, u.phone
       FROM dbo.Users u
       JOIN dbo.Roles r ON u.roleId = r.roleId
@@ -350,6 +358,5 @@ module.exports = {
   verifyUserOtp,
   updateAvatar,
   getFirstReceptionist,
-  getAllReceptionist
-}
-
+  getAllReceptionist,
+};

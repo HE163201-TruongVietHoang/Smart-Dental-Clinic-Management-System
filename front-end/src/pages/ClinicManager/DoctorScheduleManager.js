@@ -99,7 +99,7 @@ export default function ScheduleRequests() {
 
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const itemsPerPage = 8;
 
   // normalize có/dấu
   const normalizeText = (str, removeTone = true) => {
