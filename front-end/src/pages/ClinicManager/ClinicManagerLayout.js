@@ -20,11 +20,11 @@ function ClinicManagerLayout({ children }) {
   const navigate = useNavigate();
 
   const menu = [
-    {
-      name: "Bảng điều khiển",
-      icon: <FaTachometerAlt />,
-      path: "/clinicmanager/dashboard",
-    },
+    // {
+    //   name: "Bảng điều khiển",
+    //   icon: <FaTachometerAlt />,
+    //   path: "/clinicmanager/dashboard",
+    // },
     {
       name: "Thống kê",
       icon: <FaChartBar />,

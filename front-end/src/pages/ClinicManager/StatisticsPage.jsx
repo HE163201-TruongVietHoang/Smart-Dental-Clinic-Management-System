@@ -189,36 +189,73 @@ const StatisticsPage = () => {
       <Row className="mb-5">
         <Col>
           <Card className="shadow rounded-4 border-0">
-            <Card.Header style={{ background: 'linear-gradient(90deg, #2ecc71 60%, #b2f7c1 100%)', color: 'white', borderTopLeftRadius: 20, borderTopRightRadius: 20 }}>
-              <h2 className="mb-0 fw-bold"><MdAttachMoney className="me-2 mb-1" />Tổng Quan</h2>
+            <Card.Header
+              className="text-white py-3"
+              style={{
+                background: 'linear-gradient(90deg, #2ecc71 60%, #b2f7c1 100%)',
+                borderTopLeftRadius: 20,
+                borderTopRightRadius: 20
+              }}
+            >
+              <h4 className="mb-0 fw-bold d-flex align-items-center">
+                <MdAttachMoney className="me-2" /> Tổng Quan
+              </h4>
             </Card.Header>
+
             <Card.Body>
-              <Row className="g-3 justify-content-center">
-                <Col md={2} xs={6}>
-                  <div className="p-3 text-center stat-card-overview stat-card-hover" style={{cursor:'pointer'}} onClick={() => handleShowModal('appointments')}>
-                    <FaCalendarCheck size={32} className="mb-2 text-success" />
-                    <h4 className="fw-bold text-success mb-1">{overallStats.totalAppointments || 0}</h4>
+              <Row className="g-4 justify-content-center">
+                {/* Appointments */}
+                <Col xl={2} lg={3} md={4} sm={6} xs={12}>
+                  <div
+                    className="stat-card-overview stat-card-hover"
+                    onClick={() => handleShowModal('appointments')}
+                  >
+                    <FaCalendarCheck size={34} className="stat-icon text-success" />
+                    <h4 className="fw-bold text-success mt-2">
+                      {overallStats.totalAppointments || 0}
+                    </h4>
                     <p className="text-muted mb-0">Tổng Appointments</p>
                   </div>
                 </Col>
-                <Col md={2} xs={6}>
-                  <div className="p-3 text-center stat-card-overview stat-card-hover" style={{cursor:'pointer'}} onClick={() => handleShowModal('paidInvoices')}>
-                    <MdAttachMoney size={32} className="mb-2 text-primary" />
-                    <h4 className="fw-bold text-primary mb-1">{(overallStats.totalRevenue || 0).toLocaleString()} VND</h4>
+
+                {/* Revenue */}
+                <Col xl={2} lg={3} md={4} sm={6} xs={12}>
+                  <div
+                    className="stat-card-overview stat-card-hover"
+                    onClick={() => handleShowModal('paidInvoices')}
+                  >
+                    <MdAttachMoney size={34} className="stat-icon text-primary" />
+                    <h4 className="fw-bold text-primary mt-2">
+                      {(overallStats.totalRevenue || 0).toLocaleString()} VND
+                    </h4>
                     <p className="text-muted mb-0">Tổng Doanh Thu</p>
                   </div>
                 </Col>
-                <Col md={2} xs={6}>
-                  <div className="p-3 text-center stat-card-overview stat-card-hover" style={{cursor:'pointer'}} onClick={() => handleShowModal('doctors')}>
-                    <FaUserMd size={32} className="mb-2 text-warning" />
-                    <h4 className="fw-bold text-warning mb-1">{overallStats.totalDoctors || 0}</h4>
+
+                {/* Doctors */}
+                <Col xl={2} lg={3} md={4} sm={6} xs={12}>
+                  <div
+                    className="stat-card-overview stat-card-hover"
+                    onClick={() => handleShowModal('doctors')}
+                  >
+                    <FaUserMd size={34} className="stat-icon text-warning" />
+                    <h4 className="fw-bold text-warning mt-2">
+                      {overallStats.totalDoctors || 0}
+                    </h4>
                     <p className="text-muted mb-0">Tổng Bác Sĩ</p>
                   </div>
                 </Col>
-                <Col md={2} xs={6}>
-                  <div className="p-3 text-center stat-card-overview stat-card-hover" style={{cursor:'pointer'}} onClick={() => handleShowModal('patients')}>
-                    <FaUserInjured size={32} className="mb-2" style={{ color: '#e74c3c' }} />
-                    <h4 className="fw-bold mb-1" style={{ color: '#e74c3c' }}>{overallStats.totalPatients || 0}</h4>
+
+                {/* Patients */}
+                <Col xl={2} lg={3} md={4} sm={6} xs={12}>
+                  <div
+                    className="stat-card-overview stat-card-hover"
+                    onClick={() => handleShowModal('patients')}
+                  >
+                    <FaUserInjured size={34} className="stat-icon text-danger" />
+                    <h4 className="fw-bold text-danger mt-2">
+                      {overallStats.totalPatients || 0}
+                    </h4>
                     <p className="text-muted mb-0">Tổng Bệnh Nhân</p>
                   </div>
                 </Col>
@@ -227,6 +264,7 @@ const StatisticsPage = () => {
           </Card>
         </Col>
       </Row>
+
 
       {/* Modal chi tiết */}
       <Modal show={showModal} onHide={handleCloseModal} size="lg" centered scrollable>
@@ -240,11 +278,11 @@ const StatisticsPage = () => {
         </Modal.Header>
         <Modal.Body>
           {modalLoading ? (
-            <div className="d-flex justify-content-center align-items-center" style={{minHeight:200}}>
+            <div className="d-flex justify-content-center align-items-center" style={{ minHeight: 200 }}>
               <Spinner animation="border" variant="success" />
             </div>
           ) : (
-            <div style={{maxHeight: '60vh', overflowY: 'auto'}}>
+            <div style={{ maxHeight: '60vh', overflowY: 'auto' }}>
               {modalType === 'appointments' && (
                 <Table striped bordered hover responsive>
                   <thead>
@@ -264,7 +302,7 @@ const StatisticsPage = () => {
                         <td>{item.patientName}</td>
                         <td>{item.doctorName}</td>
                         <td>{(() => {
-                          switch(item.status) {
+                          switch (item.status) {
                             case 'Cancelled': return 'Đã hủy';
                             case 'Completed': return 'Hoàn thành';
                             case 'DiagnosisCompleted': return 'Đã chẩn đoán';
@@ -297,7 +335,7 @@ const StatisticsPage = () => {
                         <td>{item.totalAmount?.toLocaleString()} VND</td>
                         <td>{item.discountAmount?.toLocaleString()} VND</td>
                         <td>{(() => {
-                          switch(item.status) {
+                          switch (item.status) {
                             case 'Cancelled': return 'Đã hủy';
                             case 'Paid': return 'Đã thanh toán';
                             case 'Pending': return 'Chờ thanh toán';
