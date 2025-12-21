@@ -349,7 +349,18 @@ Từ ${startTimeStr} đến ${endTimeStr}`,
 }
 
 async function adminRejectRequest(requestId, adminId, reason) {
-  return await rejectScheduleRequest(requestId, adminId, reason);
+  // 1. Đặt status Rejected
+  await rejectScheduleRequest(requestId, adminId, reason);
+
+  // 2. Xóa luôn các schedule và request để tránh duplicate
+  await deleteScheduleByRequestId(requestId);
+  await deleteScheduleRequest(requestId);
+
+  // 3. Trả về kết quả
+  return {
+    success: true,
+    message: "Request đã bị từ chối và lịch liên quan đã xóa.",
+  };
 }
 
 async function getSchedulesByDoctor(doctorId) {

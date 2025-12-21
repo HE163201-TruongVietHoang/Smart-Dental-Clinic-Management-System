@@ -70,10 +70,11 @@ async function createScheduleRequestController(req, res) {
       details: result.results,
     });
   } catch (err) {
-    console.error(" Lỗi tạo lịch:", err);
+    console.error("Lỗi tạo lịch:", err);
+
     res.status(500).json({
-      message: "Không còn phòng trống nào để tạo lịch.",
-      error: err.message,
+      success: false,
+      message: "Không tạo được lịch",
     });
   }
 }
