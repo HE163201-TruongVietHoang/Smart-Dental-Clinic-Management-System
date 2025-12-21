@@ -264,14 +264,11 @@ async function checkAvailability(schedules) {
   return results;
 }
 
-async function listScheduleRequests(page, limit) {
-  const { requests, total } = await getScheduleRequests(page, limit);
+async function listScheduleRequests() {
+  const requests = await getScheduleRequests();
   return {
     meta: {
-      page,
-      limit,
-      total,
-      totalPages: Math.ceil(total / limit),
+      total: requests.length,
     },
     data: requests,
   };

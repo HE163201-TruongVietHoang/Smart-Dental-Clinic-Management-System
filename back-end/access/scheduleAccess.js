@@ -138,9 +138,8 @@ async function hasOverlappingSchedule(doctorId, workDate, startTime, endTime) {
   return result.recordset[0] || null;
 }
 
-async function getScheduleRequests(page = 1, limit = 10) {
+async function getScheduleRequests() {
   const pool = await getPool();
-  const offset = (page - 1) * limit;
 
   const result = await pool.request().query(`
     SELECT 
@@ -152,18 +151,10 @@ async function getScheduleRequests(page = 1, limit = 10) {
       sr.status
     FROM ScheduleRequests sr
     LEFT JOIN Users u ON sr.doctorId = u.userId
-    ORDER BY sr.createdAt DESC
-    OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY;
+    ORDER BY sr.createdAt DESC;
   `);
 
-  const countResult = await pool.request().query(`
-    SELECT COUNT(*) AS total FROM ScheduleRequests;
-  `);
-
-  const requests = result.recordset;
-  const total = countResult.recordset[0].total;
-
-  return { requests, total };
+  return result.recordset;
 }
 
 async function getScheduleRequestById(requestId) {
