@@ -53,11 +53,29 @@ export default function ClinicManagerMaterialPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [newMaterialId, setNewMaterialId] = useState("");
   const [newStandardQty, setNewStandardQty] = useState("");
+  const [editingId, setEditingId] = useState(null);
+  const [editMat, setEditMat] = useState({
+    materialName: "",
+    unit: "",
+    unitPrice: "",
+  });
 
   const TRANSACTION_TYPE_LABEL = {
     IMPORT: "Nhập kho",
     USE: "Sử dụng",
     RETURN: "Hoàn trả",
+  };
+
+  const validateEditMaterial = (m) => {
+    const name = String(m.materialName || "").trim();
+    const unit = String(m.unit || "").trim();
+    const price = Number(m.unitPrice);
+
+    if (!name || name.length < 2) return "Tên vật tư quá ngắn";
+    if (!unit) return "Đơn vị là bắt buộc";
+    if (!Number.isFinite(price) || price < 0) return "Giá phải là số >= 0";
+
+    return null;
   };
 
   /* ==============================
@@ -134,6 +152,19 @@ export default function ClinicManagerMaterialPage() {
       setServiceMaterials(await fetchAPI("/service/materials"));
     } catch (err) {
       console.error("Lỗi load định mức:", err);
+    }
+  };
+  const handleSaveMaterial = async () => {
+    const err = validateEditMaterial(editMat);
+    if (err) return toast.error(err);
+
+    try {
+      await fetchAPI(`/${editingId}`, "PUT", editMat);
+      toast.success("Cập nhật vật tư thành công!");
+      setEditingId(null);
+      loadMaterials();
+    } catch (e) {
+      toast.error(e.message);
     }
   };
 
@@ -514,12 +545,19 @@ export default function ClinicManagerMaterialPage() {
                       <th style={{ padding: "12px", textAlign: "left" }}>
                         Tên vật tư
                       </th>
-                      <th style={{ padding: "12px" }}>Đơn vị</th>
+                      <th style={{ padding: "12px", textAlign: "center" }}>
+                        Đơn vị
+                      </th>
                       <th style={{ padding: "12px", textAlign: "right" }}>
                         Giá (đ)
                       </th>
                       <th style={{ padding: "12px", textAlign: "right" }}>
                         Tồn kho
+                      </th>
+
+                      {/* ⭐ CỘT BỊ THIẾU */}
+                      <th style={{ padding: "12px", textAlign: "center" }}>
+                        Hành động
                       </th>
                     </tr>
                   </thead>
@@ -528,18 +566,69 @@ export default function ClinicManagerMaterialPage() {
                       <tr
                         key={m.materialId}
                         style={{
-                          background: m.stockQuantity < 10 ? "#fadbd8" : "#fff",
+                          background:
+                            editingId === m.materialId
+                              ? "#e8f8f5"
+                              : m.stockQuantity < 10
+                              ? "#fadbd8"
+                              : "#fff",
                           borderBottom: "1px solid #ddd",
                         }}
                       >
                         <td style={{ padding: "12px", textAlign: "center" }}>
                           {m.materialId}
                         </td>
-                        <td style={{ padding: "12px" }}>{m.materialName}</td>
-                        <td style={{ padding: "12px" }}>{m.unit}</td>
-                        <td style={{ padding: "12px", textAlign: "right" }}>
-                          {Number(m.unitPrice).toLocaleString("vi")}đ
+                        <td style={{ padding: "12px" }}>
+                          {editingId === m.materialId ? (
+                            <input
+                              value={editMat.materialName}
+                              onChange={(e) =>
+                                setEditMat({
+                                  ...editMat,
+                                  materialName: e.target.value,
+                                })
+                              }
+                              style={editInput}
+                              autoFocus
+                            />
+                          ) : (
+                            m.materialName
+                          )}
                         </td>
+
+                        <td style={{ padding: "12px", textAlign: "center" }}>
+                          {editingId === m.materialId ? (
+                            <input
+                              value={editMat.unit}
+                              onChange={(e) =>
+                                setEditMat({ ...editMat, unit: e.target.value })
+                              }
+                              style={editInputCenter}
+                            />
+                          ) : (
+                            m.unit
+                          )}
+                        </td>
+
+                        <td style={{ padding: "12px", textAlign: "right" }}>
+                          {editingId === m.materialId ? (
+                            <input
+                              type="number"
+                              min="0"
+                              value={editMat.unitPrice}
+                              onChange={(e) =>
+                                setEditMat({
+                                  ...editMat,
+                                  unitPrice: e.target.value,
+                                })
+                              }
+                              style={editInputRight}
+                            />
+                          ) : (
+                            Number(m.unitPrice).toLocaleString("vi-VN") + "đ"
+                          )}
+                        </td>
+
                         <td
                           style={{
                             padding: "12px",
@@ -549,6 +638,44 @@ export default function ClinicManagerMaterialPage() {
                           }}
                         >
                           {m.stockQuantity}
+                        </td>
+                        <td
+                          style={{
+                            padding: "12px",
+                            textAlign: "center",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {editingId === m.materialId ? (
+                            <>
+                              <button
+                                onClick={handleSaveMaterial}
+                                style={btnSave}
+                              >
+                                Lưu
+                              </button>
+                              <button
+                                onClick={() => setEditingId(null)}
+                                style={btnCancel}
+                              >
+                                Hủy
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                setEditingId(m.materialId);
+                                setEditMat({
+                                  materialName: m.materialName,
+                                  unit: m.unit,
+                                  unitPrice: m.unitPrice,
+                                });
+                              }}
+                              style={btnEdit}
+                            >
+                              Sửa
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -1311,6 +1438,58 @@ export default function ClinicManagerMaterialPage() {
 /* ==============================
    STYLE SHARED
 ============================== */
+const editInput = {
+  width: "100%",
+  padding: "8px 10px",
+  borderRadius: "8px",
+  border: "2px solid #2ECCB6",
+  fontSize: "14px",
+  outline: "none",
+};
+
+const editInputCenter = {
+  ...editInput,
+  textAlign: "center",
+};
+
+const editInputRight = {
+  ...editInput,
+  textAlign: "right",
+};
+const btnEdit = {
+  background: "#27ae60",
+  color: "#fff",
+  border: "none",
+  padding: "6px 12px",
+  borderRadius: "8px",
+  cursor: "pointer",
+  fontSize: "13px",
+  fontWeight: "600",
+};
+
+const btnSave = {
+  background: "#27ae60",
+  color: "#fff",
+  border: "none",
+  padding: "6px 12px",
+  borderRadius: "8px",
+  cursor: "pointer",
+  fontSize: "13px",
+  fontWeight: "600",
+  marginRight: "6px",
+};
+
+const btnCancel = {
+  background: "#95a5a6",
+  color: "#fff",
+  border: "none",
+  padding: "6px 12px",
+  borderRadius: "8px",
+  cursor: "pointer",
+  fontSize: "13px",
+  fontWeight: "600",
+};
+
 const s = {
   width: "100%",
   padding: "14px",

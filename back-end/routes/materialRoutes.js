@@ -122,4 +122,11 @@ router.get(
   controller.getMaterialDetailReport
 );
 
+router.put(
+  "/:materialId",
+  authMiddleware,
+  authorizeRoles("ClinicManager"),
+  controller.updateMaterialInfo
+);
+
 module.exports = router;
