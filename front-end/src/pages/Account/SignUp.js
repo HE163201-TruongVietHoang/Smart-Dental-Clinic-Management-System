@@ -182,12 +182,12 @@ export default function SignUp() {
                   <div className="mb-3">
                     <label className="form-label">Địa chỉ</label>
                     <input
-                      type="date"
+                      type="address"
                       className="form-control"
-                      name="dob"
-                      value={formData.dob}
+                      name="address"
+                      value={formData.address}
                       onChange={handleChange}
-                      max={today} // 👈 CHẶN ngày > hôm nay
+                      placeholder="Ha Noi"
                       required
                       style={{ borderRadius: "10px" }}
                     />
@@ -220,6 +220,7 @@ export default function SignUp() {
                       name="dob"
                       value={formData.dob}
                       onChange={handleChange}
+                      max={today} // 👈 CHẶN ngày > hôm nay
                       required
                       style={{ borderRadius: "10px" }}
                     />
