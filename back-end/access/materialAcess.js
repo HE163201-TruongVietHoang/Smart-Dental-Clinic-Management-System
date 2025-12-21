@@ -7,21 +7,78 @@ const { sendNotificationToMany } = require("../access/notificationAccess");
 module.exports = {
   async addNewMaterial({ materialName, unit, unitPrice }) {
     const pool = await getPool();
+
+    // ===== Normalize =====
+    const name = String(materialName || "").trim();
+    const u = String(unit || "").trim();
+    const price = Number(unitPrice);
+
+    // ===== Validate =====
+    if (!name || name.length < 2 || name.length > 100) {
+      throw new Error("Tên vật tư phải từ 2–100 ký tự");
+    }
+
+    if (!u || u.length < 1 || u.length > 50) {
+      throw new Error("Đơn vị phải từ 1–50 ký tự");
+    }
+
+    if (!Number.isFinite(price) || price < 0) {
+      throw new Error("Giá tiền phải là số >= 0");
+    }
+
+    // ===== Check trùng tên + đơn vị =====
+    const dup = await pool
+      .request()
+      .input("materialName", sql.NVarChar(100), name)
+      .input("unit", sql.NVarChar(50), u).query(`
+      SELECT 1
+      FROM Materials
+      WHERE materialName = @materialName
+        AND unit = @unit
+    `);
+
+    if (dup.recordset.length) {
+      throw new Error("Vật tư trùng tên và đơn vị đã tồn tại");
+    }
+
+    // ===== Insert =====
     await pool
       .request()
-      .input("materialName", sql.NVarChar(100), materialName)
-      .input("unit", sql.NVarChar(50), unit)
-      .input("unitPrice", sql.Decimal(18, 2), unitPrice).query(`
-        INSERT INTO Materials (materialName, unit, unitPrice, stockQuantity, createdAt, updatedAt)
-        VALUES (@materialName, @unit, @unitPrice, 0, GETDATE(), GETDATE())
-      `);
+      .input("materialName", sql.NVarChar(100), name)
+      .input("unit", sql.NVarChar(50), u)
+      .input("unitPrice", sql.Decimal(18, 2), price).query(`
+      INSERT INTO Materials (
+        materialName,
+        unit,
+        unitPrice,
+        stockQuantity,
+        createdAt,
+        updatedAt
+      )
+      VALUES (
+        @materialName,
+        @unit,
+        @unitPrice,
+        0,
+        GETDATE(),
+        GETDATE()
+      )
+    `);
+
     return { message: "Thêm vật tư mới thành công!" };
   },
 
   async getAllMaterials() {
     const pool = await getPool();
     const result = await pool.request().query(`
-      SELECT materialId, materialName, unit, unitPrice, stockQuantity, createdAt, updatedAt
+      SELECT
+        materialId,
+        materialName,
+        unit,
+        unitPrice,
+        stockQuantity,
+        createdAt,
+        updatedAt
       FROM Materials
       ORDER BY materialId DESC
     `);
@@ -35,23 +92,17 @@ module.exports = {
         mt.transactionId,
         mt.transactionType,
         mt.quantity,
+        mt.unitPriceAtTime,
         mt.transactionDate,
         mt.note,
         mt.appointmentId,
         m.materialId,
         m.materialName,
         u.userId AS operatorId,
-        u.fullName AS operatorName,
-        a.patientId,
-        patient.fullName AS patientName,
-        doc.userId AS doctorId,
-        doc.fullName AS doctorName
+        u.fullName AS operatorName
       FROM MaterialTransactions mt
       JOIN Materials m ON mt.materialId = m.materialId
       JOIN Users u ON mt.userId = u.userId
-      LEFT JOIN Appointments a ON mt.appointmentId = a.appointmentId
-      LEFT JOIN Users patient ON a.patientId = patient.userId
-      LEFT JOIN Users doc ON a.doctorId = doc.userId
       ORDER BY mt.transactionDate DESC
     `);
     return result.recordset;
@@ -97,34 +148,41 @@ module.exports = {
     try {
       await transaction.begin();
 
-      const request = new sql.Request(transaction);
-      request.input("materialId", sql.Int, materialId);
+      /* ===============================
+       1. Lấy tồn kho + GIÁ HIỆN TẠI
+    =============================== */
+      const stockReq = new sql.Request(transaction);
+      stockReq.input("materialId", sql.Int, materialId);
 
-      // 1) Lấy tồn kho
-      const stockResult = await request.query(`
-        SELECT stockQuantity FROM Materials WHERE materialId = @materialId
-      `);
+      const stockResult = await stockReq.query(`
+      SELECT stockQuantity, unitPrice
+      FROM Materials
+      WHERE materialId = @materialId
+    `);
 
-      if (stockResult.recordset.length === 0) {
-        throw new Error("Không tìm thấy vật tư với materialId đã cung cấp.");
+      if (!stockResult.recordset.length) {
+        throw new Error("Không tìm thấy vật tư");
       }
 
-      const currentStock = parseFloat(stockResult.recordset[0].stockQuantity);
-      const qty = parseFloat(quantity);
+      const currentStock = Number(stockResult.recordset[0].stockQuantity);
+      const unitPriceAtTime = Number(stockResult.recordset[0].unitPrice);
+      const qty = Number(quantity);
 
-      if (isNaN(qty) || qty <= 0) {
-        throw new Error("Số lượng phải là số dương (> 0).");
-      }
-      // 2) Validate tồn kho
-      if (transactionType === "USE" || transactionType === "DAMAGED") {
-        if (currentStock < qty) {
-          throw new Error(
-            `Không đủ tồn kho. Hiện còn ${currentStock}, cần ${qty}.`
-          );
-        }
+      if (!Number.isFinite(qty) || qty <= 0) {
+        throw new Error("Số lượng phải là số > 0");
       }
 
-      // 3) Insert transaction
+      // Validate tồn kho cho các giao dịch trừ kho
+      if (
+        (transactionType === "USE" || transactionType === "DAMAGED") &&
+        currentStock < qty
+      ) {
+        throw new Error(`Không đủ tồn kho (còn ${currentStock}, cần ${qty})`);
+      }
+
+      /* ===============================
+       2. INSERT TRANSACTION (CHỐT GIÁ)
+    =============================== */
       const insertReq = new sql.Request(transaction);
       insertReq
         .input("materialId", sql.Int, materialId)
@@ -132,17 +190,37 @@ module.exports = {
         .input("appointmentId", sql.Int, appointmentId)
         .input("transactionType", sql.NVarChar(20), transactionType)
         .input("quantity", sql.Decimal(18, 2), qty)
+        .input("unitPriceAtTime", sql.Decimal(18, 2), unitPriceAtTime)
         .input("note", sql.NVarChar(255), note);
 
       await insertReq.query(`
-        INSERT INTO MaterialTransactions
-          (materialId, userId, appointmentId, transactionType, quantity, transactionDate, note)
-        VALUES
-          (@materialId, @userId, @appointmentId, @transactionType, @quantity, GETDATE(), @note)
-      `);
+      INSERT INTO MaterialTransactions (
+        materialId,
+        userId,
+        transactionType,
+        quantity,
+        unitPriceAtTime,
+        transactionDate,
+        note,
+        appointmentId
+      )
+      VALUES (
+        @materialId,
+        @userId,
+        @transactionType,
+        @quantity,
+        @unitPriceAtTime,
+        GETDATE(),
+        @note,
+        @appointmentId
+      )
+    `);
 
-      // 4) Update tồn kho
+      /* ===============================
+       3. UPDATE TỒN KHO
+    =============================== */
       let newStock = currentStock;
+
       if (transactionType === "IMPORT" || transactionType === "RETURN") {
         newStock += qty;
       } else if (transactionType === "USE" || transactionType === "DAMAGED") {
@@ -150,19 +228,26 @@ module.exports = {
       }
 
       const updateReq = new sql.Request(transaction);
-      updateReq.input("materialId", sql.Int, materialId);
-      updateReq.input("newStock", sql.Decimal(18, 2), newStock);
-      await updateReq.query(`
-        UPDATE Materials
-        SET stockQuantity = @newStock, updatedAt = GETDATE()
-        WHERE materialId = @materialId
-      `);
+      updateReq
+        .input("materialId", sql.Int, materialId)
+        .input("newStock", sql.Decimal(18, 2), newStock);
 
+      await updateReq.query(`
+      UPDATE Materials
+      SET stockQuantity = @newStock,
+          updatedAt = GETDATE()
+      WHERE materialId = @materialId
+    `);
+
+      /* ===============================
+       4. CẢNH BÁO TỒN KHO THẤP
+    =============================== */
       await notifyLowStock(materialId, newStock, transaction);
+
       await transaction.commit();
 
       return {
-        message: `Transaction ${transactionType} thành công.`,
+        message: `Transaction ${transactionType} thành công`,
         updatedStock: newStock,
       };
     } catch (err) {
@@ -261,7 +346,7 @@ module.exports = {
         WHERE ns.nurseId = @nurseId
           AND ns.status = 'Assigned'
           AND sch.workDate = CAST(GETDATE() AS DATE)
-          AND a.status IN ('InProgress', 'DiagnosisCompleted')
+          AND a.status IN ('DiagnosisCompleted')
         GROUP BY
           a.appointmentId,
           uPatient.userId,
@@ -276,6 +361,88 @@ module.exports = {
       `);
 
     return result.recordset;
+  },
+
+  async addUsedFinalTransaction({
+    appointmentId,
+    materialId,
+    quantityUsed,
+    note = null,
+    userId,
+  }) {
+    const pool = await getPool();
+    const transaction = new sql.Transaction(pool);
+
+    try {
+      await transaction.begin();
+
+      // 1. Lấy giá hiện tại của vật tư (CHỐT GIÁ)
+      const priceReq = new sql.Request(transaction);
+      priceReq.input("materialId", sql.Int, materialId);
+
+      const priceRes = await priceReq.query(`
+      SELECT unitPrice
+      FROM Materials
+      WHERE materialId = @materialId
+    `);
+
+      if (!priceRes.recordset.length) {
+        throw new Error("Không tìm thấy vật tư để ghi nhận đã dùng");
+      }
+
+      const unitPriceAtTime = Number(priceRes.recordset[0].unitPrice);
+      const qty = Number(quantityUsed);
+
+      if (!Number.isFinite(qty) || qty <= 0) {
+        throw new Error("Số lượng sử dụng phải > 0");
+      }
+
+      // 2. Insert TRANSACTION USED_FINAL (CHỈ TÍNH TIỀN)
+      const insertReq = new sql.Request(transaction);
+      insertReq
+        .input("materialId", sql.Int, materialId)
+        .input("userId", sql.Int, userId)
+        .input("appointmentId", sql.Int, appointmentId)
+        .input("transactionType", sql.NVarChar(20), "USED_FINAL")
+        .input("quantity", sql.Decimal(18, 2), qty)
+        .input("unitPriceAtTime", sql.Decimal(18, 2), unitPriceAtTime)
+        .input("note", sql.NVarChar(255), note);
+
+      await insertReq.query(`
+      INSERT INTO MaterialTransactions (
+        materialId,
+        userId,
+        appointmentId,
+        transactionType,
+        quantity,
+        unitPriceAtTime,
+        transactionDate,
+        note
+      )
+      VALUES (
+        @materialId,
+        @userId,
+        @appointmentId,
+        @transactionType,
+        @quantity,
+        @unitPriceAtTime,
+        GETDATE(),
+        @note
+      )
+    `);
+
+      await transaction.commit();
+
+      return {
+        message: "Đã ghi nhận vật tư dùng thực tế (đã chốt chi phí)",
+        unitPriceAtTime,
+        quantityUsed: qty,
+        totalAmount: qty * unitPriceAtTime,
+      };
+    } catch (err) {
+      await transaction.rollback();
+      throw err;
+    }
   },
 
   async getMaterialsByService(serviceId) {
@@ -380,6 +547,60 @@ module.exports = {
     return result.recordset;
   },
 
+  async updateMaterialInfo(materialId, { materialName, unit, unitPrice }) {
+    const pool = await getPool();
+
+    const name = String(materialName || "").trim();
+    const u = String(unit || "").trim();
+    const price = Number(unitPrice);
+
+    if (!Number.isInteger(materialId) || materialId <= 0)
+      throw new Error("materialId không hợp lệ");
+
+    if (!name || name.length < 2 || name.length > 100)
+      throw new Error("Tên vật tư phải 2–100 ký tự");
+
+    if (!u || u.length < 1 || u.length > 50)
+      throw new Error("Đơn vị phải 1–50 ký tự");
+
+    if (!Number.isFinite(price) || price < 0)
+      throw new Error("Giá phải là số >= 0");
+
+    const dup = await pool
+      .request()
+      .input("materialId", sql.Int, materialId)
+      .input("materialName", sql.NVarChar(100), name)
+      .input("unit", sql.NVarChar(50), u).query(`
+        SELECT 1
+        FROM Materials
+        WHERE materialId <> @materialId
+          AND materialName = @materialName
+          AND unit = @unit
+      `);
+
+    if (dup.recordset.length)
+      throw new Error("Vật tư trùng tên + đơn vị đã tồn tại");
+
+    const result = await pool
+      .request()
+      .input("materialId", sql.Int, materialId)
+      .input("materialName", sql.NVarChar(100), name)
+      .input("unit", sql.NVarChar(50), u)
+      .input("unitPrice", sql.Decimal(18, 2), price).query(`
+        UPDATE Materials
+        SET
+          materialName = @materialName,
+          unit = @unit,
+          unitPrice = @unitPrice,
+          updatedAt = GETDATE()
+        WHERE materialId = @materialId
+      `);
+
+    if (result.rowsAffected[0] === 0) throw new Error("Không tìm thấy vật tư");
+
+    return { message: "Cập nhật vật tư thành công!" };
+  },
+
   async updateServiceMaterial(serviceId, materialId, standardQuantity) {
     const pool = await getPool();
     const result = await pool
@@ -474,9 +695,8 @@ module.exports = {
 async function notifyLowStock(materialId, newStock, transaction) {
   if (newStock >= 10) return;
 
-  const request = new sql.Request(transaction);
-
-  const matRes = await request.input("materialId", sql.Int, materialId).query(`
+  const req = new sql.Request(transaction);
+  const matRes = await req.input("materialId", sql.Int, materialId).query(`
       SELECT materialName
       FROM Materials
       WHERE materialId = @materialId
@@ -486,7 +706,7 @@ async function notifyLowStock(materialId, newStock, transaction) {
 
   const materialName = matRes.recordset[0].materialName;
 
-  const adminRes = await request.query(`
+  const adminRes = await req.query(`
     SELECT u.userId
     FROM Users u
     JOIN Roles r ON u.roleId = r.roleId
@@ -522,7 +742,7 @@ END;
 SELECT
     'USED' AS category,
     SUM(mt.quantity) AS totalQuantity,
-    SUM(mt.quantity * m.unitPrice) AS totalAmount
+    SUM(mt.quantity * mt.unitPriceAtTime) AS totalAmount
 FROM MaterialTransactions mt
 JOIN Materials m ON mt.materialId = m.materialId
 WHERE mt.transactionType IN ('USE','DAMAGED')
@@ -537,7 +757,7 @@ UNION ALL
 SELECT
     'IMPORT',
     SUM(mt.quantity),
-    SUM(mt.quantity * m.unitPrice)
+    SUM(mt.quantity * mt.unitPriceAtTime)
 FROM MaterialTransactions mt
 JOIN Materials m ON mt.materialId = m.materialId
 WHERE mt.transactionType = 'IMPORT'
@@ -581,7 +801,7 @@ SELECT
     m.materialName,
     m.unit,
     SUM(mt.quantity) AS totalQuantity,
-    SUM(mt.quantity * m.unitPrice) AS totalAmount,
+    SUM(mt.quantity * mt.unitPriceAtTime) AS totalAmount,
     'WEEK' AS period
 FROM MaterialTransactions mt
 JOIN Materials m ON mt.materialId = m.materialId
@@ -599,7 +819,7 @@ SELECT
     m.materialName,
     m.unit,
     SUM(mt.quantity),
-    SUM(mt.quantity * m.unitPrice),
+    SUM(mt.quantity * mt.unitPriceAtTime),
     'MONTH'
 FROM MaterialTransactions mt
 JOIN Materials m ON mt.materialId = m.materialId
