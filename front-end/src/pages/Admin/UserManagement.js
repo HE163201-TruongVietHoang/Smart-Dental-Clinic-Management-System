@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { FaPlus, FaEdit, FaTrash } from "react-icons/fa";
+import { useNavigate } from "react-router-dom";
 
 const API_URL = "http://localhost:5000/api/admin";
 
@@ -10,7 +11,7 @@ export default function UserManagement() {
   const [searchTerm, setSearchTerm] = useState("");
   const [roles, setRoles] = useState([]);
   const [message, setMessage] = useState(null);
-  const [roleFilter, setRoleFilter] = useState("ALL");
+  const navigate = useNavigate();
 
   const [form, setForm] = useState({
     fullName: "",
@@ -27,21 +28,21 @@ export default function UserManagement() {
 
   const translateRole = (roleName) => {
     const map = {
-      Admin: "Quản trị viên",
-      ClinicManager: "Quản lý phòng khám",
-      Doctor: "Bác sĩ",
-      Nurse: "Y tá",
-      Patient: "Bệnh nhân",
-      Receptionist: "Lễ tân",
+      Admin: 'Quản trị viên',
+      ClinicManager: 'Quản lý phòng khám',
+      Doctor: 'Bác sĩ',
+      Nurse: 'Y tá',
+      Patient: 'Bệnh nhân',
+      Receptionist: 'Lễ tân'
     };
     return map[roleName] || roleName;
   };
 
   const translateGender = (gender) => {
     const map = {
-      Male: "Nam",
-      Female: "Nữ",
-      Other: "Khác",
+      Male: 'Nam',
+      Female: 'Nữ',
+      Other: 'Khác'
     };
     return map[gender] || gender;
   };
@@ -71,10 +72,12 @@ export default function UserManagement() {
       setUsers(res.data.users);
     } catch (err) {
       console.error("Fetch failed:", err);
-      setMessage(
-        "Lỗi khi tải danh sách người dùng: " +
-          (err.response?.data?.message || err.error)
-      );
+      if (err.response?.status === 401) {
+        navigate('/');
+        return;
+      }
+      setMessage("Lỗi khi tải danh sách người dùng: " + (err.response?.data?.message || err.response?.data?.error));
+      
     }
   };
 
@@ -86,10 +89,11 @@ export default function UserManagement() {
       setRoles(res.data);
     } catch (err) {
       console.error("Fetch roles failed:", err);
-      setMessage(
-        "Lỗi khi tải danh sách vai trò: " +
-          (err.response?.data?.message || err.error)
-      );
+      if (err.response?.status === 401) {
+        navigate('/');
+        return;
+      }
+      setMessage("Lỗi khi tải danh sách vai trò: " + (err.response?.data?.message || err.response?.data?.error));
     }
   };
 
@@ -119,6 +123,10 @@ export default function UserManagement() {
       resetForm();
     } catch (err) {
       console.error("Save failed:", err);
+      if (err.response?.status === 401) {
+        navigate('/');
+        return;
+      }
       setMessage("Lỗi khi lưu: " + (err.response?.data?.message || err.error));
     }
   };
@@ -150,6 +158,10 @@ export default function UserManagement() {
       fetchUsers();
     } catch (err) {
       console.error("Delete failed:", err);
+      if (err.response?.status === 401) {
+        navigate('/');
+        return;
+      }
       setMessage("Lỗi khi xóa: " + (err.response?.data?.message || err.error));
     }
   };
@@ -178,13 +190,9 @@ export default function UserManagement() {
       .replace(/[\u0300-\u036f]/g, "")
       .replace(/đ/g, "d");
 
-  const filteredUsers = users.filter((u) => {
-    const matchName = normalize(u.fullName).includes(normalize(searchTerm));
-
-    const matchRole = roleFilter === "ALL" || u.roleName === roleFilter;
-
-    return matchName && matchRole;
-  });
+  const filteredUsers = users.filter((u) =>
+    normalize(u.fullName).includes(normalize(searchTerm))
+  );
 
   // Pagination
   const itemsPerPage = 10;
@@ -201,18 +209,9 @@ export default function UserManagement() {
       <h3 className="mb-4 fw-bold text-uppercase">Quản lý Người dùng</h3>
 
       {message && (
-        <div
-          className={`alert ${
-            message.includes("thành công") ? "alert-success" : "alert-danger"
-          } alert-dismissible fade show`}
-          role="alert"
-        >
+        <div className={`alert ${message.includes("thành công") ? "alert-success" : "alert-danger"} alert-dismissible fade show`} role="alert">
           {message}
-          <button
-            type="button"
-            className="btn-close"
-            onClick={() => setMessage(null)}
-          ></button>
+          <button type="button" className="btn-close" onClick={() => setMessage(null)}></button>
         </div>
       )}
 
@@ -319,25 +318,9 @@ export default function UserManagement() {
               required
             >
               <option value="">Chọn vai trò</option>
-              {roles.map((r) => (
-                <option key={r.roleId} value={r.roleId}>
-                  {translateRole(r.roleName)}
-                </option>
-              ))}
+              {roles.map(r => <option key={r.roleId} value={r.roleId}>{translateRole(r.roleName)}</option>)}
             </select>
           </div>
-          {editingUser && (
-            <div className="col-md-2 d-flex align-items-center gap-2">
-              <input
-                type="checkbox"
-                className="form-check-input"
-                name="isActive"
-                checked={form.isActive}
-                onChange={handleChange}
-              />
-              <label className="form-check-label">Kích hoạt</label>
-            </div>
-          )}
 
           {/* Buttons */}
           <div className="col-md-2 d-flex gap-2">
@@ -359,26 +342,7 @@ export default function UserManagement() {
       </form>
 
       {/* Search */}
-      <div className="d-flex justify-content-end gap-2 mb-3">
-        {/* FILTER ROLE */}
-        <select
-          className="form-select"
-          style={{ maxWidth: "220px" }}
-          value={roleFilter}
-          onChange={(e) => {
-            setRoleFilter(e.target.value);
-            setCurrentPage(1);
-          }}
-        >
-          <option value="ALL">Tất cả vai trò</option>
-          {roles.map((r) => (
-            <option key={r.roleId} value={r.roleName}>
-              {translateRole(r.roleName)}
-            </option>
-          ))}
-        </select>
-
-        {/* SEARCH */}
+      <div className="d-flex justify-content-end mb-3">
         <input
           type="text"
           className="form-control"

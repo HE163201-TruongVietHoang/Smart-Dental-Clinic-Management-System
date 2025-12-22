@@ -1,7 +1,8 @@
 // src/routes/adminRoutes.js
 const express = require("express");
 const router = express.Router();
-const { authMiddleware } = require("../middlewares/authMiddleware");
+const authorizeRoles = require("../middlewares/roleMiddleware");
+const {authMiddleware} = require("../middlewares/authMiddleware");
 const {
   getAllUsersController,
   getUserController,
@@ -12,6 +13,7 @@ const {
 
 // Middleware: auth + admin
 router.use(authMiddleware);
+router.use(authorizeRoles("Admin"));
 
 router.get("/users", getAllUsersController);
 router.get("/users/:id", getUserController);
