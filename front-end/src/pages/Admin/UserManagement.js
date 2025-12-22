@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { FaPlus, FaEdit, FaTrash } from "react-icons/fa";
+import { useNavigate } from "react-router-dom";
 
 const API_URL = "http://localhost:5000/api/admin";
 
@@ -10,6 +11,7 @@ export default function UserManagement() {
   const [searchTerm, setSearchTerm] = useState("");
   const [roles, setRoles] = useState([]);
   const [message, setMessage] = useState(null);
+  const navigate = useNavigate();
 
   const [form, setForm] = useState({
     fullName: "",
@@ -70,7 +72,12 @@ export default function UserManagement() {
       setUsers(res.data.users);
     } catch (err) {
       console.error("Fetch failed:", err);
-      setMessage("Lỗi khi tải danh sách người dùng: " + (err.response?.data?.message || err.error));
+      if (err.response?.status === 401) {
+        navigate('/');
+        return;
+      }
+      setMessage("Lỗi khi tải danh sách người dùng: " + (err.response?.data?.message || err.response?.data?.error));
+      
     }
   };
 
@@ -82,7 +89,11 @@ export default function UserManagement() {
       setRoles(res.data);
     } catch (err) {
       console.error("Fetch roles failed:", err);
-      setMessage("Lỗi khi tải danh sách vai trò: " + (err.response?.data?.message || err.error));
+      if (err.response?.status === 401) {
+        navigate('/');
+        return;
+      }
+      setMessage("Lỗi khi tải danh sách vai trò: " + (err.response?.data?.message || err.response?.data?.error));
     }
   };
 
@@ -112,6 +123,10 @@ export default function UserManagement() {
       resetForm();
     } catch (err) {
       console.error("Save failed:", err);
+      if (err.response?.status === 401) {
+        navigate('/');
+        return;
+      }
       setMessage("Lỗi khi lưu: " + (err.response?.data?.message || err.error));
     }
   };
@@ -143,6 +158,10 @@ export default function UserManagement() {
       fetchUsers();
     } catch (err) {
       console.error("Delete failed:", err);
+      if (err.response?.status === 401) {
+        navigate('/');
+        return;
+      }
       setMessage("Lỗi khi xóa: " + (err.response?.data?.message || err.error));
     }
   };
