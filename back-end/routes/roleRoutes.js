@@ -7,7 +7,11 @@ const {
   updateRoleController,
   deleteRoleController
 } = require('../controllers/roleController');
-
+const { authMiddleware } = require('../middlewares/authMiddleware');
+const authorizeRoles = require('../middlewares/roleMiddleware');
+// Apply authentication and authorization middleware
+router.use(authMiddleware);
+router.use(authorizeRoles('Admin'));
 // GET /api/roles
 router.get('/', listRolesController);
 // GET /api/roles/:id
